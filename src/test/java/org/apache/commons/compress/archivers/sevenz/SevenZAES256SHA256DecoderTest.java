@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.commons.compress.archivers.sevenz;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -33,23 +35,21 @@ import org.junit.jupiter.api.Test;
  *
  * @see AES256SHA256Decoder
  **/
-public class AES256SHA256DecoderTest {
+class SevenZAES256SHA256DecoderTest {
 
     @Test
-    public void testDecodeWithNonEmptyString() throws IOException {
-
+    void testDecodeWithNonEmptyString() throws IOException {
         final AES256SHA256Decoder aES256SHA256Decoder = new AES256SHA256Decoder();
         try (BufferedInputStream bufferedInputStream = new BufferedInputStream(null, 3138)) {
             final byte[] byteArray = new byte[8];
             byteArray[1] = (byte) -72;
             final Coder coder = new Coder(null, 0, 0, byteArray);
             try (InputStream inputStream = aES256SHA256Decoder.decode("x", bufferedInputStream, 3138, coder, coder.properties, Integer.MAX_VALUE)) {
-                final IOException e = assertThrows(IOException.class, () -> new ObjectInputStream(inputStream), "Expecting exception: IOException");
-                assertEquals("Salt size + IV size too long in x", e.getMessage());
+                final IOException e = assertThrows(ArchiveException.class, () -> new ObjectInputStream(inputStream), "Expecting exception: IOException");
+                assertEquals("Salt size + IV size too long in 'x'", e.getMessage());
                 assertEquals("org.apache.commons.compress.archivers.sevenz.AES256SHA256Decoder$AES256SHA256DecoderInputStream",
                         e.getStackTrace()[0].getClassName());
             }
         }
     }
-
 }

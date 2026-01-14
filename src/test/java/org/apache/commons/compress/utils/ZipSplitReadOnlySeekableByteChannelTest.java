@@ -37,9 +37,10 @@ import java.util.List;
 import java.util.Random;
 
 import org.apache.commons.compress.archivers.zip.ZipSplitReadOnlySeekableByteChannel;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
-public class ZipSplitReadOnlySeekableByteChannelTest {
+class ZipSplitReadOnlySeekableByteChannelTest {
 
     private List<SeekableByteChannel> getSplitZipChannels() throws IOException {
         final List<SeekableByteChannel> channels = new ArrayList<>();
@@ -56,13 +57,13 @@ public class ZipSplitReadOnlySeekableByteChannelTest {
     }
 
     @Test
-    public void testBuildFromLastSplitSegmentThrowsOnNotZipFile() throws IOException {
+    void testBuildFromLastSplitSegmentThrowsOnNotZipFile() throws IOException {
         final File lastFile = getFile("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.z01");
         assertThrows(IllegalArgumentException.class, () -> ZipSplitReadOnlySeekableByteChannel.buildFromLastSplitSegment(lastFile));
     }
 
     @Test
-    public void testChannelsPositionIsZeroAfterConstructor() throws IOException {
+    void testChannelsPositionIsZeroAfterConstructor() throws IOException {
         final List<SeekableByteChannel> channels = getSplitZipChannels();
         try (ZipSplitReadOnlySeekableByteChannel c = new ZipSplitReadOnlySeekableByteChannel(channels)) {
             for (final SeekableByteChannel channel : channels) {
@@ -72,7 +73,7 @@ public class ZipSplitReadOnlySeekableByteChannelTest {
     }
 
     @Test
-    public void testConstructorThrowsOnNonSplitZipFiles() throws IOException {
+    void testConstructorThrowsOnNonSplitZipFiles() throws IOException {
         final List<SeekableByteChannel> channels = new ArrayList<>();
         final File file = getFile("COMPRESS-189.zip");
         try (SeekableByteChannel byteChannel = Files.newByteChannel(file.toPath(), StandardOpenOption.READ)) {
@@ -82,17 +83,17 @@ public class ZipSplitReadOnlySeekableByteChannelTest {
     }
 
     @Test
-    public void testConstructorThrowsOnNullArg() {
+    void testConstructorThrowsOnNullArg() {
         assertThrows(NullPointerException.class, () -> new ZipSplitReadOnlySeekableByteChannel(null));
     }
 
     @Test
-    public void testForFilesOfTwoParametersThrowsOnNullArg() {
+    void testForFilesOfTwoParametersThrowsOnNullArg() {
         assertThrows(NullPointerException.class, () -> ZipSplitReadOnlySeekableByteChannel.forFiles(null, null));
     }
 
     @Test
-    public void testForFilesReturnCorrectClass() throws IOException {
+    void testForFilesReturnCorrectClass() throws IOException {
         final File firstFile = getFile("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.z01");
         final File secondFile = getFile("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.z02");
         final File lastFile = getFile("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.z01");
@@ -111,17 +112,17 @@ public class ZipSplitReadOnlySeekableByteChannelTest {
     }
 
     @Test
-    public void testForFilesThrowsOnNullArg() {
+    void testForFilesThrowsOnNullArg() {
         assertThrows(NullPointerException.class, () -> ZipSplitReadOnlySeekableByteChannel.forFiles((File[]) null));
     }
 
     @Test
-    public void testForOrderedSeekableByteChannelsOfTwoParametersThrowsOnNullArg() {
+    void testForOrderedSeekableByteChannelsOfTwoParametersThrowsOnNullArg() {
         assertThrows(NullPointerException.class, () -> ZipSplitReadOnlySeekableByteChannel.forOrderedSeekableByteChannels(null, null));
     }
 
     @Test
-    public void testForOrderedSeekableByteChannelsReturnCorrectClass() throws IOException {
+    void testForOrderedSeekableByteChannelsReturnCorrectClass() throws IOException {
         final File file1 = getFile("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.z01");
         final File file2 = getFile("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.z02");
         final File lastFile = getFile("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.zip");
@@ -145,25 +146,25 @@ public class ZipSplitReadOnlySeekableByteChannelTest {
     }
 
     @Test
-    public void testForOrderedSeekableByteChannelsReturnsIdentityForSingleElement() throws IOException {
-        try (SeekableByteChannel emptyChannel = new SeekableInMemoryByteChannel(ByteUtils.EMPTY_BYTE_ARRAY);
+    void testForOrderedSeekableByteChannelsReturnsIdentityForSingleElement() throws IOException {
+        try (SeekableByteChannel emptyChannel = new SeekableInMemoryByteChannel(ArrayUtils.EMPTY_BYTE_ARRAY);
                 SeekableByteChannel channel = ZipSplitReadOnlySeekableByteChannel.forOrderedSeekableByteChannels(emptyChannel)) {
             assertSame(emptyChannel, channel);
         }
     }
 
     @Test
-    public void testForOrderedSeekableByteChannelsThrowsOnNullArg() {
+    void testForOrderedSeekableByteChannelsThrowsOnNullArg() {
         assertThrows(NullPointerException.class, () -> ZipSplitReadOnlySeekableByteChannel.forOrderedSeekableByteChannels((SeekableByteChannel[]) null));
     }
 
     @Test
-    public void testForPathsOfTwoParametersThrowsOnNullArg() {
+    void testForPathsOfTwoParametersThrowsOnNullArg() {
         assertThrows(NullPointerException.class, () -> ZipSplitReadOnlySeekableByteChannel.forPaths((Path) null, null));
     }
 
     @Test
-    public void testForPathsReturnCorrectClass() throws IOException {
+    void testForPathsReturnCorrectClass() throws IOException {
         final Path firstFile = getPath("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.z01");
         final Path secondFile = getPath("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.z02");
         final Path lastFile = getPath("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.zip");
@@ -182,12 +183,12 @@ public class ZipSplitReadOnlySeekableByteChannelTest {
     }
 
     @Test
-    public void testForPathsThrowsOnNullArg() {
+    void testForPathsThrowsOnNullArg() {
         assertThrows(NullPointerException.class, () -> ZipSplitReadOnlySeekableByteChannel.forPaths((Path[]) null));
     }
 
     @Test
-    public void testPositionToSomeZipSplitSegment() throws IOException {
+    void testPositionToSomeZipSplitSegment() throws IOException {
         final File firstFile = getFile("COMPRESS-477/split_zip_created_by_zip/split_zip_created_by_zip.z01");
         final int firstFileSize = (int) firstFile.length();
 

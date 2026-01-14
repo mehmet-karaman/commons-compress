@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.commons.compress.archivers.zip;
 
 import java.io.IOException;
@@ -28,12 +29,12 @@ import java.io.OutputStream;
 abstract class RandomAccessOutputStream extends OutputStream {
 
     /**
-     * Provides current position in output.
+     * Gets the current position in this stream.
      *
      * @return current position.
-     * @throws IOException if an I/O error occurs
+     * @throws IOException if an I/O error occurs.
      */
-    public abstract long position() throws IOException;
+    abstract long position() throws IOException;
 
     @Override
     public void write(final int b) throws IOException {
@@ -41,24 +42,24 @@ abstract class RandomAccessOutputStream extends OutputStream {
     }
 
     /**
-     * Writes given data to specific position.
+     * Writes all given bytes at a position.
      *
-     * @param position position in the stream
-     * @param b        data to write
-     * @param off      offset of the start of data in param b
-     * @param len      the length of data to write
+     * @param position position in the stream.
+     * @param bytes    data to write.
+     * @param offset   offset of the start of data in param bytes.
+     * @param len      the length of data to write.
      * @throws IOException if an I/O error occurs.
      */
-    abstract void writeFully(byte[] b, int off, int len, long position) throws IOException;
+    abstract void writeAll(byte[] bytes, int offset, int len, long position) throws IOException;
 
     /**
-     * Writes given data to specific position.
+     * Writes all given bytes at a position.
      *
-     * @param position position in the stream
-     * @param b        data to write
+     * @param position position in the stream.
+     * @param bytes    data to write.
      * @throws IOException if an I/O error occurs.
      */
-    public void writeFully(final byte[] b, final long position) throws IOException {
-        writeFully(b, 0, b.length, position);
+    void writeAll(final byte[] bytes, final long position) throws IOException {
+        writeAll(bytes, 0, bytes.length, position);
     }
 }

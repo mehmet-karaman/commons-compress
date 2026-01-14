@@ -21,8 +21,19 @@ package org.apache.commons.compress.harmony.unpack200.bytecode.forms;
 import org.apache.commons.compress.harmony.unpack200.bytecode.ByteCode;
 import org.apache.commons.compress.harmony.unpack200.bytecode.CodeAttribute;
 
+/**
+ * Switch instruction form.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
+ */
 public abstract class SwitchForm extends VariableInstructionForm {
 
+    /**
+     * Constructs a new instance with the specified opcode, name, operandType and rewrite.
+     *
+     * @param opcode  index corresponding to the opcode's value.
+     * @param name    String printable name of the opcode.
+     */
     public SwitchForm(final int opcode, final String name) {
         super(opcode, name);
     }
@@ -39,7 +50,6 @@ public abstract class SwitchForm extends VariableInstructionForm {
         final int[] originalTargets = byteCode.getByteCodeTargets();
         final int numberOfLabels = originalTargets.length;
         final int[] replacementTargets = new int[numberOfLabels];
-
         final int sourceIndex = byteCode.getByteCodeIndex();
         final int sourceValue = codeAttribute.byteCodeOffsets.get(sourceIndex).intValue();
         for (int index = 0; index < numberOfLabels; index++) {

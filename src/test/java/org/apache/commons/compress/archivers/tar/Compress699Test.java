@@ -16,24 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.commons.compress.archivers.sevenz;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+package org.apache.commons.compress.archivers.tar;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class CoverageTest {
+import java.io.BufferedInputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
+import org.apache.commons.compress.archivers.ArchiveStreamFactory;
+import org.junit.Test;
+
+/**
+ * Tests https://issues.apache.org/jira/browse/COMPRESS-699
+ */
+class Compress699Test {
 
     @Test
-    public void testCLIInstance() {
-        final CLI foo = new CLI();
-        assertNotNull(foo);
-        assertThrows(Exception.class, () -> CLI.main(new String[] { "/dev/null/not-there" }));
+    void testTarArchive() throws Exception {
+        final Path fileToTest = Paths.get("src/test/resources/org/apache/commons/compress/COMPRESS-699/icure_medical_device_dart_sdk-1.2.10.tar");
+        try (BufferedInputStream fileInputStream = new BufferedInputStream(Files.newInputStream(fileToTest))) {
+            assertEquals(ArchiveStreamFactory.TAR, ArchiveStreamFactory.detect(fileInputStream));
+        }
     }
 
-    @Test
-    public void testNidInstance() {
-        assertNotNull(new NID());
-    }
 }

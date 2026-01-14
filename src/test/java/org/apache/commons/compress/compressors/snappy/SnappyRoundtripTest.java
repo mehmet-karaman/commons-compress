@@ -19,6 +19,7 @@
 package org.apache.commons.compress.compressors.snappy;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
@@ -51,6 +52,8 @@ public final class SnappyRoundtripTest extends AbstractTest {
         try (SnappyCompressorInputStream sis = new SnappyCompressorInputStream(new ByteArrayInputStream(os.toByteArray()), params.getWindowSize())) {
             final byte[] actual = IOUtils.toByteArray(sis);
             assertArrayEquals(input, actual);
+            assertEquals(input.length, sis.getUncompressedSize());
+            assertEquals(input.length, sis.getSize());
         }
     }
 
@@ -75,26 +78,26 @@ public final class SnappyRoundtripTest extends AbstractTest {
 
     // yields no compression at all
     @Test
-    public void testBiggerFileRoundtrip() throws IOException {
+    void testBiggerFileRoundtrip() throws IOException {
         roundTripTest("COMPRESS-256.7z");
     }
 
     // should yield decent compression
     @Test
-    public void testBlaTarRoundtrip() throws IOException {
+    void testBlaTarRoundtrip() throws IOException {
         // System.err.println("Configuration: default");
         roundTripTest("bla.tar");
     }
 
     @Test
-    public void testBlaTarRoundtripTunedForCompressionRatio() throws IOException {
+    void testBlaTarRoundtripTunedForCompressionRatio() throws IOException {
         // System.err.println("Configuration: tuned for compression ratio");
         roundTripTest(getPath("bla.tar"),
                 SnappyCompressorOutputStream.createParameterBuilder(SnappyCompressorInputStream.DEFAULT_BLOCK_SIZE).tunedForCompressionRatio().build());
     }
 
     @Test
-    public void testBlaTarRoundtripTunedForSpeed() throws IOException {
+    void testBlaTarRoundtripTunedForSpeed() throws IOException {
         // System.err.println("Configuration: tuned for speed");
         roundTripTest(getPath("bla.tar"),
                 SnappyCompressorOutputStream.createParameterBuilder(SnappyCompressorInputStream.DEFAULT_BLOCK_SIZE).tunedForSpeed().build());
@@ -102,12 +105,12 @@ public final class SnappyRoundtripTest extends AbstractTest {
 
     // yields no compression at all
     @Test
-    public void testGzippedLoremIpsumRoundtrip() throws IOException {
+    void testGzippedLoremIpsumRoundtrip() throws IOException {
         roundTripTest("lorem-ipsum.txt.gz");
     }
 
     @Test
-    public void testTryReallyBigOffset() throws IOException {
+    void testTryReallyBigOffset() throws IOException {
         // "normal" Snappy files will never reach offsets beyond
         // 16bits (i.e. those using four bytes to encode the length)
         // as the block size is only 32k. This means we never execute
@@ -137,7 +140,7 @@ public final class SnappyRoundtripTest extends AbstractTest {
     }
 
     @Test
-    public void testTryReallyLongLiterals() throws IOException {
+    void testTryReallyLongLiterals() throws IOException {
         // "normal" Snappy files will never reach literal blocks with
         // length beyond 16bits (i.e. those using three or four bytes
         // to encode the length) as the block size is only 32k. This

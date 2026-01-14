@@ -46,39 +46,39 @@ public final class DumpTest extends AbstractTest {
         expected.add("lost+found/");
         expected.add("test1.xml");
         expected.add("test2.xml");
-        try (InputStream is = Files.newInputStream(f.toPath());
-                DumpArchiveInputStream inputStream = new DumpArchiveInputStream(is);) {
+        try (DumpArchiveInputStream inputStream =
+                DumpArchiveInputStream.builder().setFile(f).get()) {
             checkArchiveContent(inputStream, expected);
         }
     }
 
     @Test
-    public void testArchiveDetection() throws Exception {
+    void testArchiveDetection() throws Exception {
         archiveDetection(getFile("bla.dump"));
     }
 
     @Test
-    public void testCheckArchive() throws Exception {
+    void testCheckArchive() throws Exception {
         checkDumpArchive(getFile("bla.dump"));
     }
 
     @Test
-    public void testCheckCompressedArchive() throws Exception {
+    void testCheckCompressedArchive() throws Exception {
         checkDumpArchive(getFile("bla.z.dump"));
     }
 
     @Test
-    public void testCompressedArchiveDetection() throws Exception {
+    void testCompressedArchiveDetection() throws Exception {
         archiveDetection(getFile("bla.z.dump"));
     }
 
     @Test
-    public void testCompressedDumpUnarchiveAll() throws Exception {
+    void testCompressedDumpUnarchiveAll() throws Exception {
         unarchiveAll(getFile("bla.z.dump"));
     }
 
     @Test
-    public void testDumpUnarchiveAll() throws Exception {
+    void testDumpUnarchiveAll() throws Exception {
         unarchiveAll(getFile("bla.dump"));
     }
 

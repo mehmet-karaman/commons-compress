@@ -22,16 +22,33 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.commons.compress.harmony.pack200.Pack200Exception;
 import org.apache.commons.compress.harmony.unpack200.bytecode.ByteCode;
 import org.apache.commons.compress.harmony.unpack200.bytecode.CodeAttribute;
 import org.apache.commons.compress.harmony.unpack200.bytecode.OperandManager;
 
+/**
+ * Abstract byte code form.
+ */
 public abstract class ByteCodeForm {
 
+    private static final int BC_MAX = 256;
+
+    /**
+     * Indicates whether this is a widened form.
+     */
     protected static final boolean WIDENED = true;
 
-    protected static final ByteCodeForm[] byteCodeArray = new ByteCodeForm[256];
-    protected static final Map<String, ByteCodeForm> byteCodesByName = new HashMap<>(256);
+    /**
+     * Array of all bytecode forms.
+     */
+    protected static final ByteCodeForm[] byteCodeArray = new ByteCodeForm[BC_MAX];
+
+    /**
+     * Map of bytecode forms by name.
+     */
+    protected static final Map<String, ByteCodeForm> byteCodesByName = new HashMap<>(BC_MAX);
+
     static {
         byteCodeArray[0] = new NoArgumentForm(0, "nop");
         byteCodeArray[1] = new NoArgumentForm(1, "aconst_null");
@@ -293,6 +310,12 @@ public abstract class ByteCodeForm {
         }
     }
 
+    /**
+     * Gets a ByteCodeForm.
+     *
+     * @param opcode opcode index.
+     * @return the matching ByteCodeForm at the given opcode.
+     */
     public static ByteCodeForm get(final int opcode) {
         return byteCodeArray[opcode];
     }
@@ -305,21 +328,21 @@ public abstract class ByteCodeForm {
     private int operandLength;
 
     /**
-     * Answer a new instance of this class with the specified opcode and name. Assume no rewrite.
+     * Constructs a new instance with the specified opcode and name. Assume no rewrite.
      *
-     * @param opcode int corresponding to the opcode's value
-     * @param name   String printable name of the opcode
+     * @param opcode index corresponding to the opcode's value.
+     * @param name   printable name of the opcode.
      */
     public ByteCodeForm(final int opcode, final String name) {
         this(opcode, name, new int[] { opcode });
     }
 
     /**
-     * Answer a new instance of this class with the specified opcode, name, operandType and rewrite
+     * Constructs a new instance with the specified opcode, name, operandType and rewrite.
      *
-     * @param opcode  int corresponding to the opcode's value
-     * @param name    String printable name of the opcode
-     * @param rewrite int[] Array of ints. Operand positions (which will later be rewritten in ByteCodes) are indicated by -1.
+     * @param opcode  index corresponding to the opcode's value.
+     * @param name    String printable name of the opcode.
+     * @param rewrite Operand positions (which will later be rewritten in ByteCodes) are indicated by -1.
      */
     public ByteCodeForm(final int opcode, final String name, final int[] rewrite) {
         this.opcode = opcode;
@@ -328,6 +351,9 @@ public abstract class ByteCodeForm {
         calculateOperandPosition();
     }
 
+    /**
+     * Calculates the operand position.
+     */
     protected void calculateOperandPosition() {
         firstOperandIndex = -1;
         operandLength = -1;
@@ -364,11 +390,16 @@ public abstract class ByteCodeForm {
 
         // If last < first, something is wrong.
         if (difference < 0) {
-            throw new Error("Logic error: not finding rewrite operands correctly");
+            throw new IllegalStateException("Logic error: Not finding rewrite operands correctly");
         }
         operandLength = difference + 1;
     }
 
+    /**
+     * Gets the first operand index.
+     *
+     * @return the first operand index.
+     */
     public int firstOperandIndex() {
         return firstOperandIndex;
     }
@@ -383,18 +414,38 @@ public abstract class ByteCodeForm {
         // Most ByteCodeForms don't have any fixing up to do.
     }
 
+    /**
+     * Gets the name.
+     *
+     * @return the name.
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * Gets the opcode.
+     *
+     * @return the opcode.
+     */
     public int getOpcode() {
         return opcode;
     }
 
+    /**
+     * Gets the rewrite array.
+     *
+     * @return the rewrite array.
+     */
     public int[] getRewrite() {
         return rewrite;
     }
 
+    /**
+     * Gets a copy of the rewrite array.
+     *
+     * @return a copy of the rewrite array.
+     */
     public int[] getRewriteCopy() {
         return Arrays.copyOf(rewrite, rewrite.length);
     }
@@ -416,27 +467,43 @@ public abstract class ByteCodeForm {
         return false;
     }
 
+    /**
+     * Tests whether this instance has an operand.
+     *
+     * @return whether this instance has an operand.
+     */
     public boolean hasNoOperand() {
         return false;
     }
 
+    /**
+     * Tests whether nested entries must start in the class pool.
+     *
+     * @return true if nested must start in class pool.
+     */
     public boolean nestedMustStartClassPool() {
         return false;
     }
 
+    /**
+     * Gets the operand length.
+     *
+     * @return the operand length.
+     */
     public int operandLength() {
         return operandLength;
     }
 
     /**
-     * When passed a byteCode, an OperandTable and a SegmentConstantPool, this method will set the rewrite of the byteCode appropriately.
+     * Sets the rewrite of the byteCode.
      *
-     * @param byteCode       ByteCode to be updated (!)
-     * @param operandManager OperandTable from which to draw info
+     * @param byteCode       ByteCode to be updated (!).
+     * @param operandManager OperandTable from which to draw info.
      * @param codeLength     Length of bytes (excluding this bytecode) from the beginning of the method. Used in calculating padding for some variable-length
      *                       bytecodes (such as lookupswitch, tableswitch).
+     * @throws Pack200Exception if a type is not supported or an index not in the range [0, {@link Integer#MAX_VALUE}].
      */
-    public abstract void setByteCodeOperands(ByteCode byteCode, OperandManager operandManager, int codeLength);
+    public abstract void setByteCodeOperands(ByteCode byteCode, OperandManager operandManager, int codeLength) throws Pack200Exception;
 
     @Override
     public String toString() {

@@ -23,16 +23,21 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.file.PathUtils;
 import org.apache.commons.io.function.IOStream;
@@ -44,7 +49,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Tests {@link GzipCompressorInputStream}.
  */
-public class GzipCompressorInputStreamTest {
+class GzipCompressorInputStreamTest {
 
     @TempDir
     Path tempDir;
@@ -81,10 +86,7 @@ public class GzipCompressorInputStreamTest {
                 final Path member = tempDir.resolve(e.getFileName());
                 resolved.add(member);
                 try (OutputStream os = Files.newOutputStream(member, StandardOpenOption.CREATE_NEW, StandardOpenOption.TRUNCATE_EXISTING)) {
-                    // TODO Commons IO 2.19.0 RandomAccessFileInputStream.copy()
-                    rafIs.getRandomAccessFile().seek(startPos.get());
-                    IOUtils.copyLarge(rafIs, os, 0, e.getTrailerISize());
-                    startPos.addAndGet(e.getTrailerISize());
+                    startPos.addAndGet(rafIs.copy(startPos.get(), e.getTrailerISize(), os));
                 }
             });
         }
@@ -92,8 +94,93 @@ public class GzipCompressorInputStreamTest {
     }
 
     @Test
+    void testCompress705() throws IOException {
+        try (GzipCompressorInputStream gis = GzipCompressorInputStream.builder()
+                .setFile("src/test/resources/org/apache/commons/compress/COMPRESS-705/grafana-9.2.9.tgz").setIgnoreExtraField(true).get()) {
+            // COMPRESS-705 didn't get you here
+            assertEquals("Helm", gis.getMetaData().getComment());
+            assertEquals(41, gis.getMetaData().getExtraFieldXlen());
+            final List<String> fileNames = new ArrayList<>();
+            try (TarArchiveInputStream tar = TarArchiveInputStream.builder().setInputStream(gis).get()) {
+                TarArchiveEntry entry;
+                while ((entry = tar.getNextEntry()) != null) {
+                    fileNames.add(entry.getName());
+                }
+            }
+            // @formatter:off
+            final List<String> expected = Arrays.asList(
+                    "grafana/Chart.yaml",
+                    "grafana/values.yaml",
+                    "grafana/templates/NOTES.txt",
+                    "grafana/templates/_config.tpl",
+                    "grafana/templates/_helpers.tpl",
+                    "grafana/templates/_pod.tpl",
+                    "grafana/templates/clusterrole.yaml",
+                    "grafana/templates/clusterrolebinding.yaml",
+                    "grafana/templates/configSecret.yaml",
+                    "grafana/templates/configmap-dashboard-provider.yaml",
+                    "grafana/templates/configmap.yaml",
+                    "grafana/templates/dashboards-json-configmap.yaml",
+                    "grafana/templates/deployment.yaml",
+                    "grafana/templates/extra-manifests.yaml",
+                    "grafana/templates/headless-service.yaml",
+                    "grafana/templates/hpa.yaml",
+                    "grafana/templates/image-renderer-deployment.yaml",
+                    "grafana/templates/image-renderer-hpa.yaml",
+                    "grafana/templates/image-renderer-network-policy.yaml",
+                    "grafana/templates/image-renderer-service.yaml",
+                    "grafana/templates/image-renderer-servicemonitor.yaml",
+                    "grafana/templates/ingress.yaml",
+                    "grafana/templates/networkpolicy.yaml",
+                    "grafana/templates/poddisruptionbudget.yaml",
+                    "grafana/templates/podsecuritypolicy.yaml",
+                    "grafana/templates/pvc.yaml",
+                    "grafana/templates/role.yaml",
+                    "grafana/templates/rolebinding.yaml",
+                    "grafana/templates/route.yaml",
+                    "grafana/templates/secret-env.yaml",
+                    "grafana/templates/secret.yaml",
+                    "grafana/templates/service.yaml",
+                    "grafana/templates/serviceaccount.yaml",
+                    "grafana/templates/servicemonitor.yaml",
+                    "grafana/templates/statefulset.yaml",
+                    "grafana/templates/tests/test-configmap.yaml",
+                    "grafana/templates/tests/test-podsecuritypolicy.yaml",
+                    "grafana/templates/tests/test-role.yaml",
+                    "grafana/templates/tests/test-rolebinding.yaml",
+                    "grafana/templates/tests/test-serviceaccount.yaml",
+                    "grafana/templates/tests/test.yaml",
+                    "grafana/.helmignore",
+                    "grafana/README.md",
+                    "grafana/ci/default-values.yaml",
+                    "grafana/ci/with-affinity-values.yaml",
+                    "grafana/ci/with-dashboard-json-values.yaml",
+                    "grafana/ci/with-dashboard-values.yaml",
+                    "grafana/ci/with-extraconfigmapmounts-values.yaml",
+                    "grafana/ci/with-image-renderer-values.yaml",
+                    "grafana/ci/with-nondefault-values.yaml",
+                    "grafana/ci/with-persistence.yaml",
+                    "grafana/ci/with-sidecars-envvaluefrom-values.yaml",
+                    "grafana/dashboards/custom-dashboard.json"
+            );
+            // @formatter:on
+            assertEquals(expected, fileNames);
+        }
+        try (GzipCompressorInputStream gis = GzipCompressorInputStream.builder()
+                .setFile("src/test/resources/org/apache/commons/compress/COMPRESS-705/grafana-9.2.9.tgz")
+                .setIgnoreExtraField(true)
+                .get()) {
+            // COMPRESS-705 didn't get you here
+            try (InputStream tarInputStream = Files
+                    .newInputStream(Paths.get("src/test/resources/org/apache/commons/compress/COMPRESS-705/grafana-9.2.9.tar"))) {
+                IOUtils.contentEquals(tarInputStream, gis);
+            }
+        }
+    }
+
+    @Test
     @Disabled
-    public void testGzipParametersMembersIo() throws IOException {
+    void testGzipParametersMembersIo() throws IOException {
         final Path targetFile = tempDir.resolve("test.gz");
         final String sourceFileName1 = "file1";
         final String sourceFileName2 = "file2";
@@ -135,7 +222,7 @@ public class GzipCompressorInputStreamTest {
      * @throws IOException on test failure.
      */
     @Test
-    public void testOnMemberFirstAll() throws IOException {
+    void testOnMemberFirstAll() throws IOException {
         final List<GzipParameters> parametersStart = new ArrayList<>();
         final List<GzipParameters> parametersEnd = new ArrayList<>();
         // Concatenated members, same file
@@ -175,7 +262,7 @@ public class GzipCompressorInputStreamTest {
      * @throws IOException on test failure.
      */
     @Test
-    public void testOnMemberFirstOnly() throws IOException {
+    void testOnMemberFirstOnly() throws IOException {
         final List<GzipParameters> parametersStart = new ArrayList<>();
         final List<GzipParameters> parametersEnd = new ArrayList<>();
         // First member only
@@ -210,7 +297,7 @@ public class GzipCompressorInputStreamTest {
      * @throws IOException on test failure.
      */
     @Test
-    public void testOnMemberSaveAsFiles() throws IOException {
+    void testOnMemberSaveAsFiles() throws IOException {
         final List<Path> resolved = extractMembers("src/test/resources/org/apache/commons/compress/gzip/members.gz");
         assertEquals("Hello1\n", PathUtils.readString(resolved.get(0), StandardCharsets.ISO_8859_1));
         assertEquals("Hello2\n", PathUtils.readString(resolved.get(1), StandardCharsets.ISO_8859_1));
@@ -229,7 +316,7 @@ public class GzipCompressorInputStreamTest {
      */
     @SuppressWarnings("resource")
     @Test
-    public void testOnMemberSaveAsSize0Files() throws IOException {
+    void testOnMemberSaveAsSize0Files() throws IOException {
         final List<Path> resolved = extractMembers("src/test/resources/org/apache/commons/compress/gzip/members-size-0.gz");
         assertEquals(3, resolved.size());
         IOStream.of(resolved).forEach(p -> {
@@ -249,7 +336,7 @@ public class GzipCompressorInputStreamTest {
      * @throws IOException on test failure.
      */
     @Test
-    public void testReadGzipFileCreatedByCli() throws IOException {
+    void testReadGzipFileCreatedByCli() throws IOException {
         // First member only
         try (GzipCompressorInputStream gis = GzipCompressorInputStream.builder().setFile("src/test/resources/org/apache/commons/compress/gzip/members.gz")
                 .get()) {

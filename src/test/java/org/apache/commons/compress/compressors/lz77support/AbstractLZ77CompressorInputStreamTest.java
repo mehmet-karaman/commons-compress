@@ -26,10 +26,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-import org.apache.commons.compress.utils.ByteUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
-public class AbstractLZ77CompressorInputStreamTest {
+class AbstractLZ77CompressorInputStreamTest {
 
     private static final class TestStream extends AbstractLZ77CompressorInputStream {
 
@@ -54,7 +54,7 @@ public class AbstractLZ77CompressorInputStreamTest {
     }
 
     @Test
-    public void testCantPrefillAfterDataHasBeenRead() throws IOException {
+    void testCantPrefillAfterDataHasBeenRead() throws IOException {
         final byte[] data = { 1, 2, 3, 4 };
         try (TestStream s = new TestStream(new ByteArrayInputStream(data))) {
             s.literal(3);
@@ -64,11 +64,11 @@ public class AbstractLZ77CompressorInputStreamTest {
     }
 
     @Test
-    public void testIfPrefillExceedsWindowSizeTheLastBytesAreUsed() throws IOException {
+    void testIfPrefillExceedsWindowSizeTheLastBytesAreUsed() throws IOException {
         final byte[] data = new byte[2048];
         data[2046] = 3;
         data[2047] = 4;
-        try (TestStream s = new TestStream(new ByteArrayInputStream(ByteUtils.EMPTY_BYTE_ARRAY))) {
+        try (TestStream s = new TestStream(new ByteArrayInputStream(ArrayUtils.EMPTY_BYTE_ARRAY))) {
             s.prefill(data);
             s.startBackReference(2, 4);
             final byte[] r = new byte[4];
@@ -78,9 +78,9 @@ public class AbstractLZ77CompressorInputStreamTest {
     }
 
     @Test
-    public void testPrefillCanBeUsedForBackReferences() throws IOException {
+    void testPrefillCanBeUsedForBackReferences() throws IOException {
         final byte[] data = { 1, 2, 3, 4 };
-        try (TestStream s = new TestStream(new ByteArrayInputStream(ByteUtils.EMPTY_BYTE_ARRAY))) {
+        try (TestStream s = new TestStream(new ByteArrayInputStream(ArrayUtils.EMPTY_BYTE_ARRAY))) {
             s.prefill(data);
             s.startBackReference(2, 4);
             final byte[] r = new byte[4];

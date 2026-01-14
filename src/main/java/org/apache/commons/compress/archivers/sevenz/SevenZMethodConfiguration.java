@@ -37,12 +37,12 @@ import java.util.Objects;
  * <tr>
  * <td>BZIP2</td>
  * <td>Number</td>
- * <td>Block Size - an number between 1 and 9</td>
+ * <td>Block Size - a number between 1 and 9</td>
  * </tr>
  * <tr>
  * <td>DEFLATE</td>
  * <td>Number</td>
- * <td>Compression Level - an number between 1 and 9</td>
+ * <td>Compression Level - a number between 1 and 9</td>
  * </tr>
  * <tr>
  * <td>LZMA2</td>
@@ -71,7 +71,7 @@ public class SevenZMethodConfiguration {
     /**
      * Doesn't configure any additional options.
      *
-     * @param method the method to use
+     * @param method the method to use.
      */
     public SevenZMethodConfiguration(final SevenZMethod method) {
         this(method, null);
@@ -80,8 +80,8 @@ public class SevenZMethodConfiguration {
     /**
      * Specifies and method plus configuration options.
      *
-     * @param method  the method to use
-     * @param options the options to use
+     * @param method  the method to use.
+     * @param options the options to use.
      * @throws IllegalArgumentException if the method doesn't understand the options specified.
      */
     public SevenZMethodConfiguration(final SevenZMethod method, final Object options) {
@@ -107,7 +107,7 @@ public class SevenZMethodConfiguration {
     /**
      * The specified method.
      *
-     * @return the method
+     * @return the method.
      */
     public SevenZMethod getMethod() {
         return method;
@@ -116,7 +116,7 @@ public class SevenZMethodConfiguration {
     /**
      * The specified options.
      *
-     * @return the options
+     * @return the options.
      */
     public Object getOptions() {
         return options;

@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import org.apache.commons.compress.MemoryLimitException;
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.tukaani.xz.FinishableWrapperOutputStream;
 import org.tukaani.xz.LZMA2InputStream;
 import org.tukaani.xz.LZMA2Options;
@@ -38,13 +39,12 @@ final class LZMA2Decoder extends AbstractCoder {
             final int maxMemoryLimitKiB) throws IOException {
         try {
             final int dictionarySize = getDictionarySize(coder);
-            final int memoryUsageInKiB = LZMA2InputStream.getMemoryUsage(dictionarySize);
-            if (memoryUsageInKiB > maxMemoryLimitKiB) {
-                throw new MemoryLimitException(memoryUsageInKiB, maxMemoryLimitKiB);
-            }
+            final int memoryUsageKiB = LZMA2InputStream.getMemoryUsage(dictionarySize);
+            MemoryLimitException.checkKiB(memoryUsageKiB, maxMemoryLimitKiB);
+            // Throws IllegalArgumentException
             return new LZMA2InputStream(in, dictionarySize);
-        } catch (final IllegalArgumentException ex) { // NOSONAR
-            throw new IOException(ex);
+        } catch (final IllegalArgumentException e) { // NOSONAR
+            throw new ArchiveException(e);
         }
     }
 
@@ -56,17 +56,17 @@ final class LZMA2Decoder extends AbstractCoder {
 
     private int getDictionarySize(final Coder coder) throws IOException {
         if (coder.properties == null) {
-            throw new IOException("Missing LZMA2 properties");
+            throw new ArchiveException("Missing LZMA2 properties");
         }
         if (coder.properties.length < 1) {
-            throw new IOException("LZMA2 properties too short");
+            throw new ArchiveException("LZMA2 properties too short");
         }
         final int dictionarySizeBits = 0xff & coder.properties[0];
         if ((dictionarySizeBits & ~0x3f) != 0) {
-            throw new IOException("Unsupported LZMA2 property bits");
+            throw new ArchiveException("Unsupported LZMA2 property bits");
         }
         if (dictionarySizeBits > 40) {
-            throw new IOException("Dictionary larger than 4GiB maximum size");
+            throw new ArchiveException("Dictionary larger than 4GiB maximum size");
         }
         if (dictionarySizeBits == 40) {
             return 0xFFFFffff;

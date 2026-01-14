@@ -22,8 +22,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.utils.InputStreamStatistics;
+import org.apache.commons.io.IOUtils;
 
 /**
  * Deflate64 decompressor.
@@ -44,7 +46,7 @@ public class Deflate64CompressorInputStream extends CompressorInputStream implem
     /**
      * Constructs a Deflate64CompressorInputStream.
      *
-     * @param in the stream to read from
+     * @param in the stream to read from.
      */
     public Deflate64CompressorInputStream(final InputStream in) {
         this(new HuffmanDecoder(in));
@@ -61,16 +63,14 @@ public class Deflate64CompressorInputStream extends CompressorInputStream implem
         try {
             closeDecoder();
         } finally {
-            if (originalStream != null) {
-                originalStream.close();
-                originalStream = null;
-            }
+            IOUtils.close(originalStream);
+            originalStream = null;
         }
     }
 
     private void closeDecoder() {
         final Closeable c = decoder;
-        org.apache.commons.io.IOUtils.closeQuietly(c);
+        IOUtils.closeQuietly(c);
         decoder = null;
     }
 
@@ -102,11 +102,9 @@ public class Deflate64CompressorInputStream extends CompressorInputStream implem
         }
     }
 
-    /**
-     * @throws java.io.EOFException if the underlying stream is exhausted before the end of deflated data was reached.
-     */
     @Override
     public int read(final byte[] b, final int off, final int len) throws IOException {
+        IOUtils.checkFromIndexSize(b, off, len);
         if (len == 0) {
             return 0;
         }
@@ -115,7 +113,7 @@ public class Deflate64CompressorInputStream extends CompressorInputStream implem
             try {
                 read = decoder.decode(b, off, len);
             } catch (final RuntimeException ex) {
-                throw new IOException("Invalid Deflate64 input", ex);
+                throw new CompressorException("Invalid Deflate64 input", ex);
             }
             compressedBytesRead = decoder.getBytesRead();
             count(read);

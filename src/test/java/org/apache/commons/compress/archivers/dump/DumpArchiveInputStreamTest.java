@@ -18,32 +18,78 @@
  */
 package org.apache.commons.compress.archivers.dump;
 
+import static org.apache.commons.compress.archivers.dump.DumpArchiveConstants.TP_SIZE;
+import static org.apache.commons.compress.archivers.dump.DumpArchiveTestFactory.createSegment;
+import static org.apache.commons.compress.archivers.dump.DumpArchiveTestFactory.createSummary;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.compress.AbstractTest;
+import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.Timeout.ThreadMode;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
-public class DumpArchiveInputStreamTest extends AbstractTest {
+class DumpArchiveInputStreamTest extends AbstractTest {
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 10, 32, 1024})
+    void checkSupportedRecordSizes(final int ntrec) throws Exception {
+        try (DumpArchiveInputStream dump = DumpArchiveInputStream.builder()
+                .setByteArray(createArchive(ntrec))
+                .get()) {
+            final DumpArchiveSummary summary = dump.getSummary();
+            assertNotNull(summary);
+            assertEquals(ntrec, summary.getNTRec());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {Integer.MIN_VALUE, -1, 0, 1025, Integer.MAX_VALUE})
+    void checkUnsupportedRecordSizes(final int ntrec) throws Exception {
+        final ArchiveException ex = assertThrows(ArchiveException.class, () -> DumpArchiveInputStream.builder()
+                .setByteArray(createArchive(ntrec))
+                .get());
+        assertTrue(ex.getMessage().contains(Integer.toString(ntrec)), "message should contain the invalid ntrec value");
+    }
+
+    private byte[] createArchive(final int ntrec) {
+        final byte[] dump = new byte[1024 * TP_SIZE];
+        int offset = 0;
+        // summary
+        System.arraycopy(createSummary(ntrec), 0, dump, offset, TP_SIZE);
+        offset += TP_SIZE;
+        // CLRI segment
+        System.arraycopy(createSegment(DumpArchiveConstants.SEGMENT_TYPE.CLRI), 0, dump, offset, TP_SIZE);
+        offset += TP_SIZE;
+        // BITS segment
+        System.arraycopy(createSegment(DumpArchiveConstants.SEGMENT_TYPE.BITS), 0, dump, offset, TP_SIZE);
+        return dump;
+    }
 
     @SuppressWarnings("deprecation")
     @Test
-    public void testConsumesArchiveCompletely() throws Exception {
+    void testConsumesArchiveCompletely() throws Exception {
         try (InputStream is = DumpArchiveInputStreamTest.class.getResourceAsStream("/archive_with_trailer.dump");
-                DumpArchiveInputStream dump = new DumpArchiveInputStream(is)) {
+                DumpArchiveInputStream dump =
+                        DumpArchiveInputStream.builder().setInputStream(is).get()) {
             while (dump.getNextDumpEntry() != null) {
                 // just consume the archive
             }
@@ -55,36 +101,73 @@ public class DumpArchiveInputStreamTest extends AbstractTest {
     }
 
     @Test
-    public void testDirectoryNullBytes() throws Exception {
-        try (InputStream is = newInputStream("org/apache/commons/compress/dump/directory_null_bytes-fail.dump");
-                DumpArchiveInputStream archive = new DumpArchiveInputStream(is)) {
+    void testDirectoryNullBytes() throws Exception {
+        try (DumpArchiveInputStream archive = DumpArchiveInputStream.builder()
+                .setURI(getURI("org/apache/commons/compress/dump/directory_null_bytes-fail.dump"))
+                .get()) {
             assertThrows(InvalidFormatException.class, archive::getNextEntry);
         }
     }
 
     @Test
-    public void testInvalidCompressType() throws Exception {
-        try (InputStream is = newInputStream("org/apache/commons/compress/dump/invalid_compression_type-fail.dump")) {
-            final ArchiveException ex = assertThrows(ArchiveException.class, () -> new DumpArchiveInputStream(is).close());
-            assertInstanceOf(UnsupportedCompressionAlgorithmException.class, ex.getCause());
+    void testGetNextEntry() throws IOException {
+        try (DumpArchiveInputStream inputStream = DumpArchiveInputStream.builder()
+                .setURI(getURI("org/apache/commons/compress/dump/getNextEntry.bin"))
+                .get()) {
+            assertThrows(ArchiveException.class, inputStream::getNextEntry);
         }
     }
 
     @Test
+    void testInvalidCompressType() {
+        assertThrows(UnsupportedCompressionAlgorithmException.class, () -> DumpArchiveInputStream
+                // @formatter:off
+                .builder()
+                .setURI(getURI("org/apache/commons/compress/dump/invalid_compression_type-fail.dump"))
+                .get()
+                .close()
+                // @formatter:on
+        );
+    }
+
+    @Test
     @Timeout(value = 15, unit = TimeUnit.SECONDS, threadMode = ThreadMode.SEPARATE_THREAD)
-    public void testLoopingInodes() throws Exception {
-        try (InputStream is = newInputStream("org/apache/commons/compress/dump/looping_inodes-fail.dump");
-                DumpArchiveInputStream archive = new DumpArchiveInputStream(is)) {
+    void testLoopingInodes() throws Exception {
+        try (DumpArchiveInputStream archive = DumpArchiveInputStream.builder()
+                .setURI(getURI("org/apache/commons/compress/dump/looping_inodes-fail.dump"))
+                .get()) {
             archive.getNextEntry();
             assertThrows(DumpArchiveException.class, archive::getNextEntry);
         }
     }
 
     @Test
-    public void testMultiByteReadConsistentlyReturnsMinusOneAtEof() throws Exception {
+    void testMaxSegmentLength() throws Exception {
+        try (DumpArchiveInputStream archive = DumpArchiveInputStream.builder()
+                .setURI(getURI("dump/max-segment-length.dump"))
+                .get()) {
+            // Verify that the archive correctly handles file names up to the maximum
+            // supported length of 255 bytes.
+            //
+            // The first entry is the root directory (name = ""), followed by a file
+            // whose name is exactly 255 characters long ("aaaa...a"). This ensures
+            // the implementation can read and preserve file names at the boundary
+            // of the allowed length.
+            ArchiveEntry entry = assertDoesNotThrow(archive::getNextEntry);
+            String entryName = entry.getName();
+            assertEquals("", entryName);
+            entry = assertDoesNotThrow(archive::getNextEntry);
+            entryName = entry.getName();
+            assertEquals(255, entryName.length());
+            assertEquals(StringUtils.repeat("a", 255), entryName);
+        }
+    }
+
+    @Test
+    void testMultiByteReadConsistentlyReturnsMinusOneAtEof() throws Exception {
         final byte[] buf = new byte[2];
-        try (InputStream in = newInputStream("bla.dump");
-                DumpArchiveInputStream archive = new DumpArchiveInputStream(in)) {
+        try (DumpArchiveInputStream archive =
+                DumpArchiveInputStream.builder().setURI(getURI("bla.dump")).get()) {
             assertNotNull(archive.getNextEntry());
             IOUtils.toByteArray(archive);
             assertEquals(-1, archive.read(buf));
@@ -93,25 +176,21 @@ public class DumpArchiveInputStreamTest extends AbstractTest {
     }
 
     @Test
-    public void testNotADumpArchive() throws Exception {
-        try (InputStream is = newInputStream("bla.zip")) {
-            final ArchiveException ex = assertThrows(ArchiveException.class, () -> new DumpArchiveInputStream(is).close(), "expected an exception");
-            assertTrue(ex.getCause() instanceof ShortFileException);
-        }
+    void testNotADumpArchive() {
+        assertThrows(ShortFileException.class, () -> DumpArchiveInputStream.builder().setURI(getURI("bla.zip")).get().close(), "expected an exception");
     }
 
     @Test
-    public void testNotADumpArchiveButBigEnough() throws Exception {
-        try (InputStream is = newInputStream("zip64support.tar.bz2")) {
-            final ArchiveException ex = assertThrows(ArchiveException.class, () -> new DumpArchiveInputStream(is).close(), "expected an exception");
-            assertInstanceOf(UnrecognizedFormatException.class, ex.getCause());
-        }
+    void testNotADumpArchiveButBigEnough() {
+        assertThrows(UnrecognizedFormatException.class, () -> DumpArchiveInputStream.builder().setURI(getURI("zip64support.tar.bz2")).get().close(),
+                "expected an exception");
     }
 
     @Test
-    public void testRecLenZeroLongExecution() throws Exception {
-        try (InputStream is = newInputStream("org/apache/commons/compress/dump/reclen_zero-fail.dump");
-                DumpArchiveInputStream archive = new DumpArchiveInputStream(is)) {
+    void testRecLenZeroLongExecution() throws Exception {
+        try (DumpArchiveInputStream archive = DumpArchiveInputStream.builder()
+                .setURI(getURI("org/apache/commons/compress/dump/reclen_zero-fail.dump"))
+                .get()) {
             assertTimeoutPreemptively(Duration.ofSeconds(20), () -> {
                 assertThrows(DumpArchiveException.class, archive::getNextEntry);
             });
@@ -119,14 +198,21 @@ public class DumpArchiveInputStreamTest extends AbstractTest {
     }
 
     @Test
-    public void testSingleByteReadConsistentlyReturnsMinusOneAtEof() throws Exception {
-        try (InputStream in = newInputStream("bla.dump");
-                DumpArchiveInputStream archive = new DumpArchiveInputStream(in)) {
+    void testSingleArgumentConstructor() throws Exception {
+        try (InputStream inputStream = Files.newInputStream(getPath("bla.dump"));
+                DumpArchiveInputStream archiveStream = new DumpArchiveInputStream(inputStream)) {
+            assertEquals(Charset.defaultCharset(), archiveStream.getCharset());
+        }
+    }
+
+    @Test
+    void testSingleByteReadConsistentlyReturnsMinusOneAtEof() throws Exception {
+        try (DumpArchiveInputStream archive =
+                DumpArchiveInputStream.builder().setURI(getURI("bla.dump")).get()) {
             assertNotNull(archive.getNextEntry());
             IOUtils.toByteArray(archive);
             assertEquals(-1, archive.read());
             assertEquals(-1, archive.read());
         }
     }
-
 }

@@ -20,11 +20,18 @@ package org.apache.commons.compress.harmony.pack200;
 
 /**
  * Constant pool entry for a UTF8 entry, used for storing long Strings.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPUTF8 extends ConstantPoolEntry implements Comparable {
 
     private final String string;
 
+    /**
+     * Constructs a new CPUTF8.
+     *
+     * @param string the UTF-8 string.
+     */
     public CPUTF8(final String string) {
         this.string = string;
     }
@@ -34,6 +41,11 @@ public class CPUTF8 extends ConstantPoolEntry implements Comparable {
         return string.compareTo(((CPUTF8) arg0).string);
     }
 
+    /**
+     * Gets the underlying string.
+     *
+     * @return the underlying string.
+     */
     public String getUnderlyingString() {
         return string;
     }

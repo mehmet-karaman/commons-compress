@@ -31,10 +31,10 @@ import org.apache.commons.compress.AbstractTest;
 import org.apache.commons.compress.archivers.sevenz.Coders.DeflateDecoder;
 import org.apache.commons.compress.archivers.sevenz.Coders.DeflateDecoder.DeflateDecoderInputStream;
 import org.apache.commons.compress.archivers.sevenz.Coders.DeflateDecoder.DeflateDecoderOutputStream;
-import org.apache.commons.compress.utils.ByteUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
-public class SevenZNativeHeapTest extends AbstractTest {
+class SevenZNativeHeapTest extends AbstractTest {
 
     private static final class DelegatingDeflater extends Deflater {
 
@@ -243,7 +243,7 @@ public class SevenZNativeHeapTest extends AbstractTest {
     }
 
     @Test
-    public void testEndDeflaterOnCloseStream() throws Exception {
+    void testEndDeflaterOnCloseStream() throws Exception {
         final Coders.DeflateDecoder deflateDecoder = new DeflateDecoder();
         final DelegatingDeflater delegatingDeflater;
         try (DeflateDecoderOutputStream outputStream = (DeflateDecoderOutputStream) deflateDecoder.encode(new ByteArrayOutputStream(), 9)) {
@@ -255,15 +255,14 @@ public class SevenZNativeHeapTest extends AbstractTest {
     }
 
     @Test
-    public void testEndInflaterOnCloseStream() throws Exception {
+    void testEndInflaterOnCloseStream() throws Exception {
         final Coders.DeflateDecoder deflateDecoder = new DeflateDecoder();
         final DelegatingInflater delegatingInflater;
         try (DeflateDecoderInputStream inputStream = (DeflateDecoderInputStream) deflateDecoder.decode("dummy",
-                new ByteArrayInputStream(ByteUtils.EMPTY_BYTE_ARRAY), 0, null, null, Integer.MAX_VALUE)) {
+                new ByteArrayInputStream(ArrayUtils.EMPTY_BYTE_ARRAY), 0, null, null, Integer.MAX_VALUE)) {
             delegatingInflater = new DelegatingInflater(inputStream.inflater);
             inputStream.inflater = delegatingInflater;
         }
-
         assertTrue(delegatingInflater.isEnded.get());
     }
 }

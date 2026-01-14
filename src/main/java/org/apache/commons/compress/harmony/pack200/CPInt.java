@@ -20,21 +20,33 @@ package org.apache.commons.compress.harmony.pack200;
 
 /**
  * Constant pool entry for an int.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPInt extends CPConstant<CPInt> {
 
-    private final int theInt;
+    private final int value;
 
-    public CPInt(final int theInt) {
-        this.theInt = theInt;
+    /**
+     * Constructs a new instance.
+     *
+     * @param value The value.
+     */
+    public CPInt(final int value) {
+        this.value = value;
     }
 
     @Override
     public int compareTo(final CPInt obj) {
-        return Integer.compare(theInt, obj.theInt);
+        return Integer.compare(value, obj.value);
     }
 
+    /**
+     * Gets the int value.
+     *
+     * @return the int value.
+     */
     public int getInt() {
-        return theInt;
+        return value;
     }
 }

@@ -29,10 +29,18 @@ import org.apache.commons.compress.utils.ParsingUtils;
 /**
  * This class provides the binding between the standard Pack200 interface and the internal interface for (un)packing. As this uses generics for the SortedMap,
  * this class must be compiled and run on a Java 1.5 system. However, Java 1.5 is not necessary to use the internal libraries for unpacking.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class Pack200PackerAdapter extends Pack200Adapter implements Packer {
 
     private final PackingOptions options = new PackingOptions();
+
+    /**
+     * Constructs a new Pack200PackerAdapter.
+     */
+    public Pack200PackerAdapter() {
+    }
 
     @Override
     protected void firePropertyChange(final String propertyName, final Object oldValue, final Object newValue) throws IOException {
@@ -80,7 +88,7 @@ public class Pack200PackerAdapter extends Pack200Adapter implements Packer {
         try {
             new Archive(file, out, options).pack();
         } catch (final Pack200Exception e) {
-            throw new IOException("Failed to pack Jar:" + e);
+            throw new Pack200Exception("Failed to pack Jar:" + e);
         }
         completed(1);
     }
@@ -96,7 +104,7 @@ public class Pack200PackerAdapter extends Pack200Adapter implements Packer {
         try {
             new Archive(in, out, options).pack();
         } catch (final Pack200Exception e) {
-            throw new IOException("Failed to pack Jar:" + e);
+            throw new Pack200Exception("Failed to pack Jar:" + e);
         }
         completed(1);
         in.close();

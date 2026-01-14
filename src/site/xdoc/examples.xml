@@ -8,7 +8,7 @@
    (the "License"); you may not use this file except in compliance with
    the License.  You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+       https://www.apache.org/licenses/LICENSE-2.0
 
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +19,7 @@
 -->
 <document xmlns="http://maven.apache.org/XDOC/2.0"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/XDOC/2.0 https://maven.apache.org/xsd/xdoc-2.0.xsd">
+  xsi:schemaLocation="http://maven.apache.org/XDOC/2.0 http://maven.apache.org/xsd/xdoc-2.0.xsd">
   <properties>
     <title>Commons Compress User Guide</title>
     <author email="dev@commons.apache.org">Apache Commons Team</author>
@@ -608,7 +608,7 @@ jarOutput.write(contentOfEntry);
 jarOutput.closeArchiveEntry();
 ]]></source>
 
-        <p>Reading entries from an jar archive:</p>
+        <p>Reading entries from a jar archive:</p>
 <source><![CDATA[
 JarArchiveEntry entry = jarInput.getNextJarEntry();
 byte[] content = new byte[entry.getSize()];
@@ -631,7 +631,7 @@ LOOP UNTIL entry.getSize() HAS BEEN READ {
           ZLIB compressed archives and can not write archives at
           all.</p>
 
-        <p>Reading entries from an dump archive:</p>
+        <p>Reading entries from a dump archive:</p>
 <source><![CDATA[
 DumpArchiveEntry entry = dumpInput.getNextDumpEntry();
 byte[] content = new byte[entry.getSize()];
@@ -661,7 +661,7 @@ tarOutput.write(contentOfEntry);
 tarOutput.closeArchiveEntry();
 ]]></source>
 
-        <p>Reading entries from an tar archive:</p>
+        <p>Reading entries from a tar archive:</p>
 <source><![CDATA[
 TarArchiveEntry entry = tarInput.getNextTarEntry();
 byte[] content = new byte[entry.getSize()];
@@ -693,7 +693,7 @@ zipOutput.closeArchiveEntry();
           than the one using an <code>OutputStream</code> or the
           factory method in <code>ArchiveStreamFactory</code>.</p>
 
-        <p>Reading entries from an zip archive:</p>
+        <p>Reading entries from a zip archive:</p>
 <source><![CDATA[
 ZipArchiveEntry entry = zipInput.getNextZipEntry();
 byte[] content = new byte[entry.getSize()];
@@ -702,7 +702,7 @@ LOOP UNTIL entry.getSize() HAS BEEN READ {
 }
 ]]></source>
 
-        <p>Reading entries from an zip archive using the
+        <p>Reading entries from a zip archive using the
           recommended <code>ZipFile</code> class:</p>
 <source><![CDATA[
 ZipArchiveEntry entry = zipFile.getEntry(name);
@@ -946,7 +946,7 @@ in.close();
       <subsection name="LZ4">
 
         <p>There are two different "formats" used for <a
-        href="http://lz4.github.io/lz4/">lz4</a>. The format called
+        href="https://lz4.github.io/lz4/">lz4</a>. The format called
         "block format" only contains the raw compressed data while the
         other provides a higher level "frame format" - Commons
         Compress offers two different stream classes for reading or

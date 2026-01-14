@@ -21,6 +21,7 @@ package org.apache.commons.compress.compressors.lz77support;
 import java.io.IOException;
 import java.util.Objects;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayFill;
 
 /**
@@ -28,7 +29,7 @@ import org.apache.commons.lang3.ArrayFill;
  *
  * <p>
  * Most LZ77 derived algorithms split input data into blocks of uncompressed data (called literal blocks) and back-references (pairs of offsets and lengths)
- * that state "add {@code length} bytes that are the same as those already written starting {@code offset} bytes before the current position. The details of how
+ * that state add {@code length} bytes that are the same as those already written starting {@code offset} bytes before the current position. The details of how
  * those blocks and back-references are encoded are quite different between the algorithms and some algorithms perform additional steps (Huffman encoding in the
  * case of DEFLATE for example).
  * </p>
@@ -80,6 +81,8 @@ public class LZ77Compressor {
 
     /**
      * Represents a back-reference.
+     *
+     * @since 1.28.0
      */
     public abstract static class AbstractReference extends Block {
 
@@ -100,9 +103,9 @@ public class LZ77Compressor {
         }
 
         /**
-         * Gets the offset of the reference.
+         * Gets the length of the reference.
          *
-         * @return the length
+         * @return the length of the reference.
          */
         public int getLength() {
             return length;
@@ -111,7 +114,7 @@ public class LZ77Compressor {
         /**
          * Gets the offset of the reference.
          *
-         * @return the offset
+         * @return the offset of the reference.
          */
         public int getOffset() {
             return offset;
@@ -176,7 +179,7 @@ public class LZ77Compressor {
         /**
          * Constructs a new typeless instance.
          *
-         * @deprecated Use {@link #Block()}.
+         * @deprecated Use {@code LZ77Compressor.Block#Block(BlockType)}.
          */
         @Deprecated
         public Block() {
@@ -193,9 +196,9 @@ public class LZ77Compressor {
         }
 
         /**
-         * Gets the the block type.
+         * Gets the block type.
          *
-         * @return the the block type.
+         * @return the block type.
          */
         public BlockType getType() {
             return type;
@@ -220,8 +223,8 @@ public class LZ77Compressor {
         /**
          * Consumes a block.
          *
-         * @param b the block to consume
-         * @throws IOException in case of an error
+         * @param b the block to consume.
+         * @throws IOException in case of an error.
          */
         void accept(Block b) throws IOException;
     }
@@ -230,7 +233,7 @@ public class LZ77Compressor {
     public static final class EOD extends Block {
 
         /**
-         * Singleton instance.
+         * The singleton instance.
          */
         private static final EOD INSTANCE = new EOD();
 
@@ -274,7 +277,7 @@ public class LZ77Compressor {
          * This returns a live view of the actual data in order to avoid copying, modify the array at your own risk.
          * </p>
          *
-         * @return the data
+         * @return the data.
          */
         public byte[] getData() {
             return data;
@@ -331,9 +334,9 @@ public class LZ77Compressor {
     /**
      * Initializes a compressor with parameters and a callback.
      *
-     * @param params   the parameters
-     * @param callback the callback
-     * @throws NullPointerException if either parameter is {@code null}
+     * @param params   the parameters.
+     * @param callback the callback.
+     * @throws NullPointerException if either parameter is {@code null}.
      */
     public LZ77Compressor(final Parameters params, final Callback callback) {
         Objects.requireNonNull(params, "params");
@@ -399,8 +402,8 @@ public class LZ77Compressor {
     /**
      * Feeds bytes into the compressor which in turn may emit zero or more blocks to the callback during the execution of this method.
      *
-     * @param data the data to compress - must not be null
-     * @throws IOException if the callback throws an exception
+     * @param data the data to compress - must not be null.
+     * @throws IOException if the callback throws an exception.
      */
     public void compress(final byte[] data) throws IOException {
         compress(data, 0, data.length);
@@ -409,12 +412,15 @@ public class LZ77Compressor {
     /**
      * Feeds bytes into the compressor which in turn may emit zero or more blocks to the callback during the execution of this method.
      *
-     * @param data the data to compress - must not be null
-     * @param off  the start offset of the data
-     * @param len  the number of bytes to compress
-     * @throws IOException if the callback throws an exception
+     * @param data the data to compress - must not be null.
+     * @param off  the start offset of the data.
+     * @param len  the number of bytes to compress.
+     * @throws NullPointerException if data is {@code null}.
+     * @throws IndexOutOfBoundsException if {@code off} or {@code len} are negative, or if {@code off + len} is bigger than {@code data.length}.
+     * @throws IOException if the callback throws an exception.
      */
     public void compress(final byte[] data, int off, int len) throws IOException {
+        IOUtils.checkFromIndexSize(data, off, len);
         final int wSize = params.getWindowSize();
         while (len > wSize) { // chop into windowSize sized chunks
             doCompress(data, off, wSize);
@@ -449,7 +455,7 @@ public class LZ77Compressor {
      * The compressor will in turn emit at least one block ({@link EOD}) but potentially multiple blocks to the callback during the execution of this method.
      * </p>
      *
-     * @throws IOException if the callback throws an exception
+     * @throws IOException if the callback throws an exception.
      */
     public void finish() throws IOException {
         if (blockStart != currentPosition || lookahead > 0) {
@@ -582,7 +588,7 @@ public class LZ77Compressor {
      * </p>
      *
      * @param data the data to fill the window with.
-     * @throws IllegalStateException if the compressor has already started to accept data
+     * @throws IllegalStateException if the compressor has already started to accept data.
      */
     public void prefill(final byte[] data) {
         if (currentPosition != 0 || lookahead != 0) {

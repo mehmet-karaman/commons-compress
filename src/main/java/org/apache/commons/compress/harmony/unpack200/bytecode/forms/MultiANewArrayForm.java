@@ -18,6 +18,7 @@
  */
 package org.apache.commons.compress.harmony.unpack200.bytecode.forms;
 
+import org.apache.commons.compress.harmony.pack200.Pack200Exception;
 import org.apache.commons.compress.harmony.unpack200.bytecode.ByteCode;
 import org.apache.commons.compress.harmony.unpack200.bytecode.OperandManager;
 
@@ -25,9 +26,18 @@ import org.apache.commons.compress.harmony.unpack200.bytecode.OperandManager;
  * This class implements the byte code form for the multianewarray instruction. It has a class reference and a byte operand.
  *
  * MultiANewArrayForms (like other anewarray forms) do not track the last new().
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class MultiANewArrayForm extends ClassRefForm {
 
+    /**
+     * Constructs a new instance with the specified opcode, name, operandType and rewrite.
+     *
+     * @param opcode  index corresponding to the opcode's value.
+     * @param name    String printable name of the opcode.
+     * @param rewrite Operand positions (which will later be rewritten in ByteCodes) are indicated by -1.
+     */
     public MultiANewArrayForm(final int opcode, final String name, final int[] rewrite) {
         super(opcode, name, rewrite);
     }
@@ -40,11 +50,10 @@ public class MultiANewArrayForm extends ClassRefForm {
      * org.apache.commons.compress.harmony.unpack200.SegmentConstantPool)
      */
     @Override
-    public void setByteCodeOperands(final ByteCode byteCode, final OperandManager operandManager, final int codeLength) {
+    public void setByteCodeOperands(final ByteCode byteCode, final OperandManager operandManager, final int codeLength) throws Pack200Exception {
         // multianewarray has a class ref and a dimension.
         // The superclass handles the class ref.
         super.setByteCodeOperands(byteCode, operandManager, codeLength);
-
         // We have to handle the dimension.
         final int dimension = operandManager.nextByte();
         byteCode.setOperandByte(dimension, 2);

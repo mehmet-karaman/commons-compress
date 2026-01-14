@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteOrder;
 
+import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.lzw.LZWInputStream;
 
 /**
@@ -40,9 +41,9 @@ public class ZCompressorInputStream extends LZWInputStream {
     /**
      * Checks if the signature matches what is expected for a Unix compress file.
      *
-     * @param signature the bytes to check
-     * @param length    the number of bytes to check
-     * @return true, if this stream is a Unix compress compressed stream, false otherwise
+     * @param signature the bytes to check.
+     * @param length    the number of bytes to check.
+     * @return true, if this stream is a Unix compress compressed stream, false otherwise.
      * @since 1.9
      */
     public static boolean matches(final byte[] signature, final int length) {
@@ -76,7 +77,7 @@ public class ZCompressorInputStream extends LZWInputStream {
         final int secondByte = (int) in.readBits(8);
         final int thirdByte = (int) in.readBits(8);
         if (firstByte != MAGIC_1 || secondByte != MAGIC_2 || thirdByte < 0) {
-            throw new IOException("Input is not in .Z format");
+            throw new CompressorException("Input is not in .Z format");
         }
         blockMode = (thirdByte & BLOCK_MODE_MASK) != 0;
         maxCodeSize = thirdByte & MAX_CODE_SIZE_MASK;
@@ -115,21 +116,21 @@ public class ZCompressorInputStream extends LZWInputStream {
      * <strong>This method is only protected for technical reasons and is not part of Commons Compress' published API. It may change or disappear without
      * warning.</strong>
      * </p>
+     * <pre>{@code
+     *  table entry table entry
+     *  _____________ _____
+     *  table entry / \ / \
+     *  ____________/ \ \
+     *  / / \ / \ \
+     *  +---+---+---+---+---+---+---+---+---+---+
+     *  | . | . | . | . | . | . | . | . | . | . |
+     *  +---+---+---+---+---+---+---+---+---+---+
+     *  |<--------->|<------------->|<----->|<->|
+     *  symbol symbol symbol symbol
+     * }</pre>
      */
     @Override
     protected int decompressNextSymbol() throws IOException {
-        //
-        // table entry table entry
-        // _____________ _____
-        // table entry / \ / \
-        // ____________/ \ \
-        // / / \ / \ \
-        // +---+---+---+---+---+---+---+---+---+---+
-        // | . | . | . | . | . | . | . | . | . | . |
-        // +---+---+---+---+---+---+---+---+---+---+
-        // |<--------->|<------------->|<----->|<->|
-        // symbol symbol symbol symbol
-        //
         final int code = readNextCode();
         if (code < 0) {
             return -1;
@@ -146,7 +147,7 @@ public class ZCompressorInputStream extends LZWInputStream {
             addRepeatOfPreviousCode();
             addedUnfinishedEntry = true;
         } else if (code > getTableSize()) {
-            throw new IOException(String.format("Invalid %d bit code 0x%x", getCodeSize(), code));
+            throw new CompressorException("Invalid %d bit code 0x%x", getCodeSize(), code);
         }
         return expandCodeToOutputStack(code, addedUnfinishedEntry);
     }
@@ -167,11 +168,11 @@ public class ZCompressorInputStream extends LZWInputStream {
         return code;
     }
 
+    /**
+     * "compress" works in multiples of 8 symbols, each codeBits bits long. When codeBits changes, the remaining unused symbols in the current group of 8 are
+     * still written out, in the old codeSize, as garbage values (usually zeroes) that need to be skipped.
+     */
     private void reAlignReading() throws IOException {
-        // "compress" works in multiples of 8 symbols, each codeBits bits long.
-        // When codeBits changes, the remaining unused symbols in the current
-        // group of 8 are still written out, in the old codeSize,
-        // as garbage values (usually zeroes) that need to be skipped.
         long codeReadsToThrowAway = 8 - totalCodesRead % 8;
         if (codeReadsToThrowAway == 8) {
             codeReadsToThrowAway = 0;
@@ -181,5 +182,4 @@ public class ZCompressorInputStream extends LZWInputStream {
         }
         in.clearBitCache();
     }
-
 }

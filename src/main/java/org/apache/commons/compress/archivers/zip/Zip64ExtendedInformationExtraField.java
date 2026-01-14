@@ -23,7 +23,7 @@ import static org.apache.commons.compress.archivers.zip.ZipConstants.WORD;
 
 import java.util.zip.ZipException;
 
-import org.apache.commons.compress.utils.ByteUtils;
+import org.apache.commons.lang3.ArrayUtils;
 
 /**
  * Holds size and other extended information for entries that use Zip64 features.
@@ -44,7 +44,7 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
 
     static final ZipShort HEADER_ID = new ZipShort(0x0001);
 
-    private static final String LFH_MUST_HAVE_BOTH_SIZES_MSG = "Zip64 extended information must contain" + " both size values in the local file header.";
+    private static final String LFH_MUST_HAVE_BOTH_SIZES_MSG = "Zip64 extended information must contain both size values in the local file header.";
     private ZipEightByteInteger size;
     private ZipEightByteInteger compressedSize;
     private ZipEightByteInteger relativeHeaderOffset;
@@ -71,9 +71,9 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
     /**
      * Creates an extra field based on the original and compressed size.
      *
-     * @param size           the entry's original size
-     * @param compressedSize the entry's compressed size
-     * @throws IllegalArgumentException if size or compressedSize is null
+     * @param size           the entry's original size.
+     * @param compressedSize the entry's compressed size.
+     * @throws IllegalArgumentException if size or compressedSize is null.
      */
     public Zip64ExtendedInformationExtraField(final ZipEightByteInteger size, final ZipEightByteInteger compressedSize) {
         this(size, compressedSize, null, null);
@@ -82,11 +82,11 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
     /**
      * Creates an extra field based on all four possible values.
      *
-     * @param size                 the entry's original size
-     * @param compressedSize       the entry's compressed size
-     * @param relativeHeaderOffset the entry's offset
-     * @param diskStart            the disk start
-     * @throws IllegalArgumentException if size or compressedSize is null
+     * @param size                 the entry's original size.
+     * @param compressedSize       the entry's compressed size.
+     * @param relativeHeaderOffset the entry's offset.
+     * @param diskStart            the disk start.
+     * @throws IllegalArgumentException if size or compressedSize is null.
      */
     public Zip64ExtendedInformationExtraField(final ZipEightByteInteger size, final ZipEightByteInteger compressedSize,
             final ZipEightByteInteger relativeHeaderOffset, final ZipLong diskStart) {
@@ -119,7 +119,6 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
         }
         if (diskStart != null) {
             System.arraycopy(diskStart.getBytes(), 0, data, off, WORD);
-            off += WORD; // NOSONAR - assignment as documentation
         }
         return data;
     }
@@ -163,7 +162,7 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
             addSizes(data);
             return data;
         }
-        return ByteUtils.EMPTY_BYTE_ARRAY;
+        return ArrayUtils.EMPTY_BYTE_ARRAY;
     }
 
     @Override
@@ -238,8 +237,6 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
         }
         if (remaining >= WORD) {
             diskStart = new ZipLong(buffer, offset);
-            offset += WORD; // NOSONAR - assignment as documentation
-            remaining -= WORD; // NOSONAR - assignment as documentation
         }
     }
 
@@ -251,11 +248,11 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
      * directory contains the correct magic value.
      * </p>
      *
-     * @param hasUncompressedSize     flag to read from central directory
-     * @param hasCompressedSize       flag to read from central directory
-     * @param hasRelativeHeaderOffset flag to read from central directory
-     * @param hasDiskStart            flag to read from central directory
-     * @throws ZipException on error
+     * @param hasUncompressedSize     flag to read from central directory.
+     * @param hasCompressedSize       flag to read from central directory.
+     * @param hasRelativeHeaderOffset flag to read from central directory.
+     * @param hasDiskStart            flag to read from central directory.
+     * @throws ZipException on error.
      */
     public void reparseCentralDirectoryData(final boolean hasUncompressedSize, final boolean hasCompressedSize, final boolean hasRelativeHeaderOffset,
             final boolean hasDiskStart) throws ZipException {
@@ -263,7 +260,7 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
             final int expectedLength = (hasUncompressedSize ? DWORD : 0) + (hasCompressedSize ? DWORD : 0) + (hasRelativeHeaderOffset ? DWORD : 0)
                     + (hasDiskStart ? WORD : 0);
             if (rawCentralDirectoryData.length < expectedLength) {
-                throw new ZipException("Central directory zip64 extended" + " information extra field's length" + " doesn't match central directory"
+                throw new ZipException("Central directory zip64 extended information extra field's length doesn't match central directory"
                         + " data.  Expected length " + expectedLength + " but is " + rawCentralDirectoryData.length);
             }
             int offset = 0;
@@ -281,7 +278,6 @@ public class Zip64ExtendedInformationExtraField implements ZipExtraField {
             }
             if (hasDiskStart) {
                 diskStart = new ZipLong(rawCentralDirectoryData, offset);
-                offset += WORD; // NOSONAR - assignment as documentation
             }
         }
     }

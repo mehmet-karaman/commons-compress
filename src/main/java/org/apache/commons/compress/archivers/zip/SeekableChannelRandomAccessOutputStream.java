@@ -26,7 +26,7 @@ import java.nio.channels.SeekableByteChannel;
  * {@link RandomAccessOutputStream} implementation for SeekableByteChannel.
  */
 // Keep package-private; consider for Apache Commons IO.
-class SeekableChannelRandomAccessOutputStream extends RandomAccessOutputStream {
+final class SeekableChannelRandomAccessOutputStream extends RandomAccessOutputStream {
 
     private final SeekableByteChannel channel;
 
@@ -46,15 +46,15 @@ class SeekableChannelRandomAccessOutputStream extends RandomAccessOutputStream {
 
     @Override
     public synchronized void write(final byte[] b, final int off, final int len) throws IOException {
-        ZipIoUtil.writeFully(this.channel, ByteBuffer.wrap(b, off, len));
+        ZipIoUtil.writeAll(this.channel, ByteBuffer.wrap(b, off, len));
     }
 
     @Override
-    public synchronized void writeFully(final byte[] b, final int off, final int len, final long position) throws IOException {
+    public synchronized void writeAll(final byte[] b, final int off, final int len, final long position) throws IOException {
         final long saved = channel.position();
         try {
             channel.position(position);
-            ZipIoUtil.writeFully(channel, ByteBuffer.wrap(b, off, len));
+            ZipIoUtil.writeAll(channel, ByteBuffer.wrap(b, off, len));
         } finally {
             channel.position(saved);
         }

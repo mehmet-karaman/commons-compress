@@ -27,6 +27,9 @@ public class StreamingNotSupportedException extends ArchiveException {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * The format name.
+     */
     private final String format;
 
     /**
@@ -35,7 +38,7 @@ public class StreamingNotSupportedException extends ArchiveException {
      * @param format the format that has been requested/detected.
      */
     public StreamingNotSupportedException(final String format) {
-        super("The " + format + " doesn't support streaming.");
+        super("The %s doesn't support streaming.", format);
         this.format = format;
     }
 

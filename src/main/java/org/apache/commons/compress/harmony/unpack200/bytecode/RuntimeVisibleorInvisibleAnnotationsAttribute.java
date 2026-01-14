@@ -23,25 +23,33 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.compress.harmony.pack200.Pack200Exception;
+
 /**
  * Annotations class file attribute, either a RuntimeVisibleAnnotations attribute or a RuntimeInvisibleAnnotations attribute.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class RuntimeVisibleorInvisibleAnnotationsAttribute extends AnnotationsAttribute {
 
-    private final int numAnnotations;
     private final Annotation[] annotations;
 
+    /**
+     * Constructs a new instance for an attribute name.
+     *
+     * @param name an attribute name.
+     * @param annotations Annotations.
+     */
     public RuntimeVisibleorInvisibleAnnotationsAttribute(final CPUTF8 name, final Annotation[] annotations) {
         super(name);
-        this.numAnnotations = annotations.length;
         this.annotations = annotations;
     }
 
     @Override
     protected int getLength() {
         int length = 2;
-        for (int i = 0; i < numAnnotations; i++) {
-            length += annotations[i].getLength();
+        for (final Annotation annotation : annotations) {
+            length += annotation.getLength();
         }
         return length;
     }
@@ -66,18 +74,18 @@ public class RuntimeVisibleorInvisibleAnnotationsAttribute extends AnnotationsAt
 
     @Override
     public String toString() {
-        return attributeName.underlyingString() + ": " + numAnnotations + " annotations";
+        return attributeName.underlyingString() + ": " + annotations.length + " annotations";
     }
 
     @Override
     protected void writeBody(final DataOutputStream dos) throws IOException {
         final int size = dos.size();
-        dos.writeShort(numAnnotations);
-        for (int i = 0; i < numAnnotations; i++) {
-            annotations[i].writeBody(dos);
+        dos.writeShort(annotations.length);
+        for (final Annotation annotation : annotations) {
+            annotation.writeBody(dos);
         }
         if (dos.size() - size != getLength()) {
-            throw new Error();
+            throw new Pack200Exception("Bad length");
         }
     }
 }

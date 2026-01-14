@@ -18,15 +18,91 @@
  */
 package org.apache.commons.compress.archivers;
 
-import java.io.IOException;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import org.apache.commons.compress.CompressException;
 
 /**
  * Signals that an Archive exception of some sort has occurred.
  */
-public class ArchiveException extends IOException {
+public class ArchiveException extends CompressException {
+
+    private static final Function<Throwable, ArchiveException> E_FUNCTION = ArchiveException::new;
 
     /** Serial. */
     private static final long serialVersionUID = 2772690708123267100L;
+
+    /**
+     * Delegates to {@link Math#addExact(int, int)} wrapping its {@link ArithmeticException} in our {@link ArchiveException}.
+     *
+     * @param x the first value.
+     * @param y the second value.
+     * @return the result.
+     * @throws ArchiveException if the result or input overflows an {@code int}.
+     * @see Math#addExact(int, int)
+     * @since 1.29.0
+     */
+    public static int addExact(final int x, final long y) throws ArchiveException {
+        return addExact(x, y, E_FUNCTION);
+    }
+
+    /**
+     * Delegates to {@link Math#addExact(long, long)} wrapping its {@link ArithmeticException} in our {@link ArchiveException}.
+     *
+     * @param x the first value.
+     * @param y the second value.
+     * @return the result.
+     * @throws ArchiveException if the result overflows a {@code long}.
+     * @see Math#addExact(long, long)
+     * @since 1.29.0
+     */
+    public static long addExact(final long x, final long y) throws ArchiveException {
+        try {
+            return Math.addExact(x, y);
+        } catch (final ArithmeticException e) {
+            throw new ArchiveException(e);
+        }
+    }
+
+    /**
+     * Checks that the specified object reference is not {@code null} and throws a customized {@link ArchiveException} if it is. *
+     *
+     * @param obj             the object reference to check for nullity.
+     * @param messageSupplier supplier of the detail message to be used in the event that a {@code ArchiveException} is thrown.
+     * @param <T>             the type of the reference.
+     * @return {@code obj} if not {@code null}.
+     * @throws ArchiveException if {@code obj} is {@code null}.
+     * @since 1.28.0
+     */
+    public static <T> T requireNonNull(final T obj, final Supplier<String> messageSupplier) throws ArchiveException {
+        return CompressException.requireNonNull(ArchiveException.class, obj, messageSupplier);
+    }
+
+    /**
+     * Delegates to {@link Math#toIntExact(long)} wrapping its {@link ArithmeticException} in our {@link ArchiveException}.
+     *
+     * @param value the long value.
+     * @return the argument as an int.
+     * @throws ArchiveException if the {@code argument} overflows an int.
+     * @since 1.29.0
+     */
+    public static int toIntExact(final long value) throws ArchiveException {
+        try {
+            return Math.toIntExact(value);
+        } catch (final ArithmeticException e) {
+            throw new ArchiveException(e);
+        }
+    }
+
+    /**
+     * Constructs an {@code ArchiveException} with {@code null} as its error detail message.
+     *
+     * @since 1.28.0
+     */
+    public ArchiveException() {
+        // empty
+    }
 
     /**
      * Constructs a new exception with the specified detail message. The cause is not initialized.
@@ -43,8 +119,48 @@ public class ArchiveException extends IOException {
      * @param message The message (which is saved for later retrieval by the {@link #getMessage()} method).
      * @param cause   The cause (which is saved for later retrieval by the {@link #getCause()} method). A null value indicates that the cause is nonexistent or
      *                unknown.
+     * @deprecated Use {@link #ArchiveException(String, Throwable)}.
      */
+    @Deprecated
     public ArchiveException(final String message, final Exception cause) {
         super(message, cause);
+    }
+
+    /**
+     * Constructs a new exception with the specified detail message format and arguments. The cause is not initialized.
+     * <p>
+     * The arguments are used with {@link String#format(String, Object...)}.
+     * </p>
+     *
+     * @param message The message format (which is saved for later retrieval by the {@link #getMessage()} method).
+     * @param args    the format arguments to use.
+     * @since 1.29.0
+     * @see String#format(String, Object...)
+     */
+    public ArchiveException(final String message, final Object... args) {
+        super(message, args);
+    }
+
+    /**
+     * Constructs a new exception with the specified detail message and cause.
+     *
+     * @param message The message (which is saved for later retrieval by the {@link #getMessage()} method).
+     * @param cause   The cause (which is saved for later retrieval by the {@link #getCause()} method). A null value indicates that the cause is nonexistent or
+     *                unknown.
+     * @since 1.28.0
+     */
+    public ArchiveException(final String message, final Throwable cause) {
+        super(message, cause);
+    }
+
+    /**
+     * Constructs a {@code ArchiveException} with the specified cause and a detail message.
+     *
+     * @param cause The cause (which is saved for later retrieval by the {@link #getCause()} method). (A null value is permitted, and indicates that the cause
+     *              is nonexistent or unknown.)
+     * @since 1.28.0
+     */
+    public ArchiveException(final Throwable cause) {
+        super(cause);
     }
 }

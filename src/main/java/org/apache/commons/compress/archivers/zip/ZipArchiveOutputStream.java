@@ -38,9 +38,11 @@ import java.util.zip.Deflater;
 import java.util.zip.ZipException;
 
 import org.apache.commons.compress.archivers.ArchiveEntry;
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.archivers.ArchiveOutputStream;
-import org.apache.commons.compress.utils.ByteUtils;
 import org.apache.commons.io.Charsets;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
 
 /**
  * Reimplementation of {@link java.util.zip.ZipOutputStream java.util.zip.ZipOutputStream} to handle the extended functionality of this package, especially
@@ -227,6 +229,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /*
      * Various ZIP constants shared between this class, ZipArchiveInputStream and ZipFile
      */
+
     /**
      * local file header signature
      */
@@ -383,8 +386,8 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Creates a new ZIP OutputStream writing to a File. Will use random access if possible.
      *
-     * @param file the file to ZIP to
-     * @throws IOException on error
+     * @param file the file to ZIP to.
+     * @throws IOException on error.
      */
     public ZipArchiveOutputStream(final File file) throws IOException {
         this(file.toPath());
@@ -403,10 +406,10 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
      * known before the actual entry data is written.
      * </p>
      *
-     * @param file         the file that will become the last part of the split archive
+     * @param file         the file that will become the last part of the split archive.
      * @param zipSplitSize maximum size of a single part of the split archive created by this stream. Must be between 64kB and about 4GB.
-     * @throws IOException              on error
-     * @throws IllegalArgumentException if zipSplitSize is not in the required range
+     * @throws IOException              on error.
+     * @throws IllegalArgumentException if zipSplitSize is not in the required range.
      * @since 1.20
      */
     public ZipArchiveOutputStream(final File file, final long zipSplitSize) throws IOException {
@@ -416,7 +419,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Creates a new ZIP OutputStream filtering the underlying stream.
      *
-     * @param out the outputstream to zip
+     * @param out the output stream to zip.
      */
     public ZipArchiveOutputStream(final OutputStream out) {
         this.out = out;
@@ -436,10 +439,10 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
      * known before the actual entry data is written.
      * </p>
      *
-     * @param path         the path to the file that will become the last part of the split archive
+     * @param path         the path to the file that will become the last part of the split archive.
      * @param zipSplitSize maximum size of a single part of the split archive created by this stream. Must be between 64kB and about 4GB.
-     * @throws IOException              on error
-     * @throws IllegalArgumentException if zipSplitSize is not in the required range
+     * @throws IOException              on error.
+     * @throws IllegalArgumentException if zipSplitSize is not in the required range.
      * @since 1.22
      */
     public ZipArchiveOutputStream(final Path path, final long zipSplitSize) throws IOException {
@@ -452,9 +455,9 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Creates a new ZIP OutputStream writing to a Path. Will use random access if possible.
      *
-     * @param file    the file to ZIP to
+     * @param file    the file to ZIP to.
      * @param options options specifying how the file is opened.
-     * @throws IOException on error
+     * @throws IOException on error.
      * @since 1.21
      */
     public ZipArchiveOutputStream(final Path file, final OpenOption... options) throws IOException {
@@ -468,10 +471,10 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
      * Creates a new ZIP OutputStream writing to a SeekableByteChannel.
      *
      * <p>
-     * {@link org.apache.commons.compress.utils.SeekableInMemoryByteChannel} allows you to write to an in-memory archive using random access.
+     * {@link org.apache.commons.io.channels.ByteArraySeekableByteChannel} allows you to write to an in-memory archive using random access.
      * </p>
      *
-     * @param channel the channel to ZIP to
+     * @param channel the channel to ZIP to.
      * @since 1.13
      */
     public ZipArchiveOutputStream(final SeekableByteChannel channel) {
@@ -491,9 +494,9 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
      * The entry is put and closed immediately.
      * </p>
      *
-     * @param entry     The archive entry to add
+     * @param entry     The archive entry to add.
      * @param rawStream The raw input stream of a different entry. May be compressed/encrypted.
-     * @throws IOException If copying fails
+     * @throws IOException If copying fails.
      */
     public void addRawArchiveEntry(final ZipArchiveEntry entry, final InputStream rawStream) throws IOException {
         final ZipArchiveEntry ae = new ZipArchiveEntry(entry);
@@ -531,7 +534,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     }
 
     /**
-     * Whether this stream is able to write the given entry.
+     * Tests whether this stream is able to write the given entry.
      * <p>
      * May return false if it is set up to use encryption or a compression method that hasn't been implemented yet.
      * </p>
@@ -579,7 +582,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Writes all necessary data for this entry.
      *
-     * @throws IOException            on error
+     * @throws IOException            on error.
      * @throws Zip64RequiredException if the entry's uncompressed or compressed size exceeds 4 GByte and {@link #setUseZip64} is {@link Zip64Mode#Never}.
      */
     @Override
@@ -600,8 +603,8 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Writes all necessary data for this entry.
      *
-     * @param phased This entry is second phase of a 2-phase ZIP creation, size, compressed size and CRC are known in ZipArchiveEntry
-     * @throws IOException            on error
+     * @param phased This entry is second phase of a 2-phase ZIP creation, size, compressed size and CRC are known in ZipArchiveEntry.
+     * @throws IOException            on error.
      * @throws Zip64RequiredException if the entry's uncompressed or compressed size exceeds 4 GByte and {@link #setUseZip64} is {@link Zip64Mode#Never}.
      */
     private void closeCopiedEntry(final boolean phased) throws IOException {
@@ -651,7 +654,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     @Override
     public ZipArchiveEntry createArchiveEntry(final File inputFile, final String entryName) throws IOException {
         if (finished) {
-            throw new IOException("Stream has already been finished");
+            throw new ArchiveException("Stream has already been finished");
         }
         return new ZipArchiveEntry(inputFile, entryName);
     }
@@ -676,7 +679,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     @Override
     public ZipArchiveEntry createArchiveEntry(final Path inputPath, final String entryName, final LinkOption... options) throws IOException {
         if (finished) {
-            throw new IOException("Stream has already been finished");
+            throw new ArchiveException("Stream has already been finished");
         }
         return new ZipArchiveEntry(inputPath, entryName);
     }
@@ -703,10 +706,10 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Writes the central file header entry.
      *
-     * @param ze            the entry to write
-     * @param name          The encoded name
-     * @param entryMetaData meta data for this file
-     * @throws IOException on error
+     * @param ze            the entry to write.
+     * @param name          The encoded name.
+     * @param entryMetaData meta data for this file.
+     * @throws IOException on error.
      */
     private byte[] createCentralFileHeader(final ZipArchiveEntry ze, final ByteBuffer name, final EntryMetaData entryMetaData, final boolean needsZip64Extra)
             throws IOException {
@@ -870,7 +873,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
         } else if (zipMethod == DEFLATED || out instanceof RandomAccessOutputStream) {
             System.arraycopy(LZERO, 0, buf, LFH_COMPRESSED_SIZE_OFFSET, ZipConstants.WORD);
             System.arraycopy(LZERO, 0, buf, LFH_ORIGINAL_SIZE_OFFSET, ZipConstants.WORD);
-        } else if (ZipMethod.isZstd(zipMethod)) {
+        } else if (ZipMethod.isZstd(zipMethod) || zipMethod == ZipMethod.XZ.getCode()) {
             ZipLong.putLong(ze.getCompressedSize(), buf, LFH_COMPRESSED_SIZE_OFFSET);
             ZipLong.putLong(ze.getSize(), buf, LFH_ORIGINAL_SIZE_OFFSET);
         } else { // Stored
@@ -895,7 +898,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Writes next block of compressed data to the output stream.
      *
-     * @throws IOException on error
+     * @throws IOException on error.
      */
     protected final void deflate() throws IOException {
         streamCompressor.deflate();
@@ -922,11 +925,11 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     @Override
     public void finish() throws IOException {
         if (finished) {
-            throw new IOException("This archive has already been finished");
+            throw new ArchiveException("This archive has already been finished");
         }
 
         if (entry != null) {
-            throw new IOException("This archive contains unclosed entries.");
+            throw new ArchiveException("This archive contains unclosed entries.");
         }
 
         final long cdOverallOffset = streamCompressor.getTotalBytesWritten();
@@ -991,7 +994,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Returns the total number of bytes written to this stream.
      *
-     * @return the number of written bytes
+     * @return the number of written bytes.
      * @since 1.22
      */
     @Override
@@ -1076,7 +1079,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
             entry.entry.setSize(entry.bytesRead);
             entry.entry.setCompressedSize(bytesWritten);
             entry.entry.setCrc(crc);
-        } else if (ZipMethod.isZstd(zipMethod)) {
+        } else if (ZipMethod.isZstd(zipMethod) || zipMethod == ZipMethod.XZ.getCode()) {
             entry.entry.setCompressedSize(bytesWritten);
             entry.entry.setCrc(crc);
         } else if (!(out instanceof RandomAccessOutputStream)) {
@@ -1141,7 +1144,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
      * {@link #putArchiveEntry(ZipArchiveEntry)}.
      * </p>
      *
-     * @return true if seekable
+     * @return true if seekable.
      */
     public boolean isSeekable() {
         return out instanceof RandomAccessOutputStream;
@@ -1157,23 +1160,23 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
 
     private void preClose() throws IOException {
         if (finished) {
-            throw new IOException("Stream has already been finished");
+            throw new ArchiveException("Stream has already been finished");
         }
 
         if (entry == null) {
-            throw new IOException("No current entry to close");
+            throw new ArchiveException("No current entry to close");
         }
 
         if (!entry.hasWritten) {
-            write(ByteUtils.EMPTY_BYTE_ARRAY, 0, 0);
+            write(ArrayUtils.EMPTY_BYTE_ARRAY, 0, 0);
         }
     }
 
     /**
      * {@inheritDoc}
      *
-     * @throws ClassCastException     if entry is not an instance of ZipArchiveEntry
-     * @throws Zip64RequiredException if the entry's uncompressed or compressed size is known to exceed 4 GByte and {@link #setUseZip64} is
+     * @throws ClassCastException     if entry is not an instance of ZipArchiveEntry.
+     * @throws Zip64RequiredException if the entry's uncompressed or compressed size is known to exceed 4 GByte and {@link #setUseZip64} is.
      *                                {@link Zip64Mode#Never}.
      */
     @Override
@@ -1185,15 +1188,15 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
      * Writes the headers for an archive entry to the output stream. The caller must then write the content to the stream and call {@link #closeArchiveEntry()}
      * to complete the process.
      *
-     * @param archiveEntry The archiveEntry
-     * @param phased       If true size, compressedSize and CRC required to be known up-front in the archiveEntry
-     * @throws ClassCastException     if entry is not an instance of ZipArchiveEntry
-     * @throws Zip64RequiredException if the entry's uncompressed or compressed size is known to exceed 4 GByte and {@link #setUseZip64} is
+     * @param archiveEntry The archiveEntry.
+     * @param phased       If true size, compressedSize and CRC required to be known up-front in the archiveEntry.
+     * @throws ClassCastException     if entry is not an instance of ZipArchiveEntry.
+     * @throws Zip64RequiredException if the entry's uncompressed or compressed size is known to exceed 4 GByte and {@link #setUseZip64} is.
      *                                {@link Zip64Mode#Never}.
      */
     private void putArchiveEntry(final ZipArchiveEntry archiveEntry, final boolean phased) throws IOException {
         if (finished) {
-            throw new IOException("Stream has already been finished");
+            throw new ArchiveException("Stream has already been finished");
         }
 
         if (entry != null) {
@@ -1243,20 +1246,20 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
      * sizes.
      */
     private void rewriteSizesAndCrc(final boolean actuallyNeedsZip64) throws IOException {
-        final RandomAccessOutputStream randomStream = (RandomAccessOutputStream) out;
+        final RandomAccessOutputStream outputStream = (RandomAccessOutputStream) out;
         long dataStart = entry.localDataStart;
-        if (randomStream instanceof ZipSplitOutputStream) {
-            dataStart = ((ZipSplitOutputStream) randomStream).calculateDiskPosition(entry.entry.getDiskNumberStart(), dataStart);
+        if (outputStream instanceof ZipSplitOutputStream) {
+            dataStart = ((ZipSplitOutputStream) outputStream).calculateDiskPosition(entry.entry.getDiskNumberStart(), dataStart);
         }
 
         long position = dataStart;
-        randomStream.writeFully(ZipLong.getBytes(entry.entry.getCrc()), position); position += ZipConstants.WORD;
+        outputStream.writeAll(ZipLong.getBytes(entry.entry.getCrc()), position); position += ZipConstants.WORD;
         if (!hasZip64Extra(entry.entry) || !actuallyNeedsZip64) {
-            randomStream.writeFully(ZipLong.getBytes(entry.entry.getCompressedSize()), position); position += ZipConstants.WORD;
-            randomStream.writeFully(ZipLong.getBytes(entry.entry.getSize()), position);
+            outputStream.writeAll(ZipLong.getBytes(entry.entry.getCompressedSize()), position); position += ZipConstants.WORD;
+            outputStream.writeAll(ZipLong.getBytes(entry.entry.getSize()), position);
         } else {
-            randomStream.writeFully(ZipLong.ZIP64_MAGIC.getBytes(), position); position += ZipConstants.WORD;
-            randomStream.writeFully(ZipLong.ZIP64_MAGIC.getBytes(), position);
+            outputStream.writeAll(ZipLong.ZIP64_MAGIC.getBytes(), position); position += ZipConstants.WORD;
+            outputStream.writeAll(ZipLong.ZIP64_MAGIC.getBytes(), position);
         }
         position += ZipConstants.WORD;
 
@@ -1267,14 +1270,14 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
             position = dataStart + 3 * ZipConstants.WORD + 2 * ZipConstants.SHORT + nameLen + 2 * ZipConstants.SHORT;
             // inside the ZIP64 extra uncompressed size comes
             // first, unlike the LFH, CD or data descriptor
-            randomStream.writeFully(ZipEightByteInteger.getBytes(entry.entry.getSize()), position); position += ZipConstants.DWORD;
-            randomStream.writeFully(ZipEightByteInteger.getBytes(entry.entry.getCompressedSize()), position); position += ZipConstants.DWORD;
+            outputStream.writeAll(ZipEightByteInteger.getBytes(entry.entry.getSize()), position); position += ZipConstants.DWORD;
+            outputStream.writeAll(ZipEightByteInteger.getBytes(entry.entry.getCompressedSize()), position); position += ZipConstants.DWORD;
 
             if (!actuallyNeedsZip64) {
                 // do some cleanup:
                 // * rewrite version needed to extract
                 position = dataStart - 5 * ZipConstants.SHORT;
-                randomStream.writeFully(ZipShort.getBytes(versionNeededToExtract(entry.entry.getMethod(), false, false)), position);
+                outputStream.writeAll(ZipShort.getBytes(versionNeededToExtract(entry.entry.getMethod(), false, false)), position);
                 position += ZipConstants.SHORT;
 
                 // * remove ZIP64 extra, so it doesn't get written
@@ -1294,14 +1297,14 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Sets the file comment.
      *
-     * @param comment the comment
+     * @param comment the comment.
      */
     public void setComment(final String comment) {
         this.comment = comment;
     }
 
     /**
-     * Whether to create Unicode Extra Fields.
+     * Sets whether to create Unicode Extra Fields.
      * <p>
      * Defaults to NEVER.
      * </p>
@@ -1340,14 +1343,14 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
      * Defaults to UTF-8.
      * </p>
      *
-     * @param encoding the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding the encoding to use for file names, use null for the platform's default encoding.
      */
     public void setEncoding(final String encoding) {
         setEncoding(Charsets.toCharset(encoding));
     }
 
     /**
-     * Whether to fall back to UTF and the language encoding flag if the file name cannot be encoded using the specified encoding.
+     * Sets whether to fall back to UTF and the language encoding flag if the file name cannot be encoded using the specified encoding.
      * <p>
      * Defaults to false.
      * </p>
@@ -1361,7 +1364,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Sets the compression level for subsequent entries.
      * <p>
-     * Default is Deflater.DEFAULT_COMPRESSION.
+     * Default is {@code Deflater.DEFAULT_COMPRESSION}.
      * </p>
      *
      * @param level the compression level.
@@ -1384,26 +1387,26 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
      * Default is DEFLATED.
      * </p>
      *
-     * @param method an {@code int} from java.util.zip.ZipEntry
+     * @param method an {@code int} from java.util.zip.ZipEntry.
      */
     public void setMethod(final int method) {
         this.method = method;
     }
 
     /**
-     * Whether to set the language encoding flag if the file name encoding is UTF-8.
+     * Sets whether to set the language encoding flag if the file name encoding is UTF-8.
      * <p>
      * Defaults to true.
      * </p>
      *
-     * @param b whether to set the language encoding flag if the file name encoding is UTF-8
+     * @param b whether to set the language encoding flag if the file name encoding is UTF-8.
      */
     public void setUseLanguageEncodingFlag(final boolean b) {
         useUtf8Flag = b && ZipEncodingHelper.isUTF8(charset);
     }
 
     /**
-     * Whether Zip64 extensions will be used.
+     * Sets whether Zip64 extensions will be used.
      * <p>
      * When setting the mode to {@link Zip64Mode#Never Never}, {@link #putArchiveEntry}, {@link #closeArchiveEntry}, {@link #finish} or {@link #close} may throw
      * a {@link Zip64RequiredException} if the entry's size or the total size of the archive exceeds 4GB or there are more than 65,536 entries inside the
@@ -1430,22 +1433,22 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
      * non-seekable stream - in this case the default is {@link Zip64Mode#Never Never}.
      * </p>
      *
-     * @since 1.3
      * @param mode Whether Zip64 extensions will be used.
+     * @since 1.3
      */
     public void setUseZip64(final Zip64Mode mode) {
         zip64Mode = mode;
     }
 
     /**
-     * Whether to add a Zip64 extended information extra field to the local file header.
+     * Tests whether to add a Zip64 extended information extra field to the local file header.
      * <p>
      * Returns true if
      * </p>
      * <ul>
      * <li>mode is Always</li>
      * <li>or we already know it is going to be needed</li>
-     * <li>or the size is unknown and we can ensure it won't hurt other implementations if we add it (i.e. we can erase its usage</li>
+     * <li>or the size is unknown, and we can ensure it won't hurt other implementations if we add it (i.e. we can erase its usage</li>
      * </ul>
      */
     private boolean shouldAddZip64Extra(final ZipArchiveEntry entry, final Zip64Mode mode) {
@@ -1455,10 +1458,13 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     }
 
     /**
+     * Tests if zip64 End Of Central Directory is needed.
+     * <p>
      * 4.4.1.4 If one of the fields in the end of central directory record is too small to hold required data, the field SHOULD be set to -1 (0xFFFF or
      * 0xFFFFFFFF) and the ZIP64 format record SHOULD be created.
+     * </p>
      *
-     * @return true if zip64 End Of Central Directory is needed
+     * @return true if zip64 End Of Central Directory is needed.
      */
     private boolean shouldUseZip64EOCD() {
         int numberOfThisDisk = 0;
@@ -1483,7 +1489,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * If the Zip64 mode is set to never, then all the data in End Of Central Directory should not exceed their limits.
      *
-     * @throws Zip64RequiredException if Zip64 is actually needed
+     * @throws Zip64RequiredException if Zip64 is actually needed.
      */
     private void validateIfZip64IsNeededInEOCD() throws Zip64RequiredException {
         // exception will only be thrown if the Zip64 mode is never while Zip64 is actually needed
@@ -1530,10 +1536,10 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
         // Size/CRC not required if SeekableByteChannel is used
         if (entry.entry.getMethod() == STORED && !(out instanceof RandomAccessOutputStream)) {
             if (entry.entry.getSize() == ArchiveEntry.SIZE_UNKNOWN) {
-                throw new ZipException("Uncompressed size is required for" + " STORED method when not writing to a" + " file");
+                throw new ZipException("Uncompressed size is required for STORED method when not writing to a file");
             }
             if (entry.entry.getCrc() == ZipArchiveEntry.CRC_UNKNOWN) {
-                throw new ZipException("CRC checksum is required for STORED" + " method when not writing to a file");
+                throw new ZipException("CRC checksum is required for STORED method when not writing to a file");
             }
             entry.entry.setCompressedSize(entry.entry.getSize());
         }
@@ -1561,13 +1567,17 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Writes bytes to ZIP entry.
      *
-     * @param b      the byte array to write
-     * @param offset the start position to write from
-     * @param length the number of bytes to write
-     * @throws IOException on error
+     * @param b      the byte array to write.
+     * @param offset the start position to write from.
+     * @param length the number of bytes to write.
+     * @throws NullPointerException      if {@code b} is null.
+     * @throws IndexOutOfBoundsException if {@code offset} or {@code length} are negative,.
+     *                                   or if {@code offset + length} is greater than {@code b.length}.
+     * @throws IOException on error.
      */
     @Override
     public void write(final byte[] b, final int offset, final int length) throws IOException {
+        IOUtils.checkFromIndexSize(b, offset, length);
         if (entry == null) {
             throw new IllegalStateException("No current entry");
         }
@@ -1579,8 +1589,8 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Writes the &quot;End of central dir record&quot;.
      *
-     * @throws IOException            on error
-     * @throws Zip64RequiredException if the archive's size exceeds 4 GByte or there are more than 65535 entries inside the archive and
+     * @throws IOException            on error.
+     * @throws Zip64RequiredException if the archive's size exceeds 4 GByte or there are more than 65535 entries inside the archive and.
      *                                {@link #setUseZip64(Zip64Mode)} is {@link Zip64Mode#Never}.
      */
     protected void writeCentralDirectoryEnd() throws IOException {
@@ -1643,8 +1653,8 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Writes the central file header entry.
      *
-     * @param ze the entry to write
-     * @throws IOException            on error
+     * @param ze the entry to write.
+     * @throws IOException            on error.
      * @throws Zip64RequiredException if the archive's size exceeds 4 GByte and {@link #setUseZip64(Zip64Mode)} is {@link Zip64Mode#Never}.
      */
     protected void writeCentralFileHeader(final ZipArchiveEntry ze) throws IOException {
@@ -1653,10 +1663,10 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     }
 
     /**
-     * Write bytes to output or random access file.
+     * Writes bytes to output or random access file.
      *
-     * @param data the byte array to write
-     * @throws IOException on error
+     * @param data the byte array to write.
+     * @throws IOException on error.
      */
     private void writeCounted(final byte[] data) throws IOException {
         streamCompressor.writeCounted(data);
@@ -1665,8 +1675,8 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Writes the data descriptor entry.
      *
-     * @param ze the entry to write
-     * @throws IOException on error
+     * @param ze the entry to write.
+     * @throws IOException on error.
      */
     protected void writeDataDescriptor(final ZipArchiveEntry ze) throws IOException {
         if (!usesDataDescriptor(ze.getMethod(), false)) {
@@ -1684,10 +1694,10 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     }
 
     /**
-     * Writes the local file header entry
+     * Writes the local file header entry.
      *
-     * @param ze the entry to write
-     * @throws IOException on error
+     * @param ze the entry to write.
+     * @throws IOException on error.
      */
     protected void writeLocalFileHeader(final ZipArchiveEntry ze) throws IOException {
         writeLocalFileHeader(ze, false);
@@ -1718,32 +1728,32 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     }
 
     /**
-     * Write bytes to output or random access file.
+     * Writes bytes to output or random access file.
      *
-     * @param data the byte array to write
-     * @throws IOException on error
+     * @param data the byte array to write.
+     * @throws IOException on error.
      */
     protected final void writeOut(final byte[] data) throws IOException {
         streamCompressor.writeOut(data, 0, data.length);
     }
 
     /**
-     * Write bytes to output or random access file.
+     * Writes bytes to output or random access file.
      *
-     * @param data   the byte array to write
-     * @param offset the start position to write from
-     * @param length the number of bytes to write
-     * @throws IOException on error
+     * @param data   the byte array to write.
+     * @param offset the start position to write from.
+     * @param length the number of bytes to write.
+     * @throws IOException on error.
      */
     protected final void writeOut(final byte[] data, final int offset, final int length) throws IOException {
         streamCompressor.writeOut(data, offset, length);
     }
 
     /**
-     * Write preamble data. For most of the time, this is used to make self-extracting zips.
+     * Writes preamble data. For most of the time, this is used to make self-extracting zips.
      *
-     * @param preamble data to write
-     * @throws IOException if an entry already exists
+     * @param preamble data to write.
+     * @throws IOException if an entry already exists.
      * @since 1.21
      */
     public void writePreamble(final byte[] preamble) throws IOException {
@@ -1751,12 +1761,12 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     }
 
     /**
-     * Write preamble data. For most of the time, this is used to make self-extracting zips.
+     * Writes preamble data. For most of the time, this is used to make self-extracting zips.
      *
-     * @param preamble data to write
-     * @param offset   the start offset in the data
-     * @param length   the number of bytes to write
-     * @throws IOException if an entry already exists
+     * @param preamble data to write.
+     * @param offset   the start offset in the data.
+     * @param length   the number of bytes to write.
+     * @throws IOException if an entry already exists.
      * @since 1.21
      */
     public void writePreamble(final byte[] preamble, final int offset, final int length) throws IOException {
@@ -1769,7 +1779,7 @@ public class ZipArchiveOutputStream extends ArchiveOutputStream<ZipArchiveEntry>
     /**
      * Writes the &quot;ZIP64 End of central dir record&quot; and &quot;ZIP64 End of central dir locator&quot;.
      *
-     * @throws IOException on error
+     * @throws IOException on error.
      * @since 1.3
      */
     protected void writeZip64CentralDirectory() throws IOException {

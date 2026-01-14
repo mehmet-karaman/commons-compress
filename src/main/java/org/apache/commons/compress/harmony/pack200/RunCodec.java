@@ -22,11 +22,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 
-import org.apache.commons.compress.utils.ExactMath;
-
 /**
  * A run codec is a grouping of two nested codecs; K values are decoded from the first codec, and the remaining codes are decoded from the remaining codec. Note
  * that since this codec maintains state, the instances are not reusable.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class RunCodec extends Codec {
 
@@ -35,16 +35,21 @@ public class RunCodec extends Codec {
     private final Codec bCodec;
     private int last;
 
+    /**
+     * Constructs a new RunCodec.
+     *
+     * @param k the number of values.
+     * @param aCodec the A codec.
+     * @param bCodec the B codec.
+     * @throws Pack200Exception if k is negative or codecs are null.
+     */
     public RunCodec(final int k, final Codec aCodec, final Codec bCodec) throws Pack200Exception {
         if (k <= 0) {
             throw new Pack200Exception("Cannot have a RunCodec for a negative number of numbers");
         }
-        if (aCodec == null || bCodec == null) {
-            throw new Pack200Exception("Must supply both codecs for a RunCodec");
-        }
         this.k = k;
-        this.aCodec = aCodec;
-        this.bCodec = bCodec;
+        this.aCodec = Pack200Exception.requireNonNull(aCodec, "aCodec");
+        this.bCodec = Pack200Exception.requireNonNull(bCodec, "bCodec");
     }
 
     @Override
@@ -57,19 +62,19 @@ public class RunCodec extends Codec {
         if (--k >= 0) {
             final int value = aCodec.decode(in, this.last);
             this.last = k == 0 ? 0 : value;
-            return normalise(value, aCodec);
+            return normalize(value, aCodec);
         }
         this.last = bCodec.decode(in, this.last);
-        return normalise(this.last, bCodec);
+        return normalize(this.last, bCodec);
     }
 
     @Override
     public int[] decodeInts(final int n, final InputStream in) throws IOException, Pack200Exception {
         final int[] aValues = aCodec.decodeInts(k, in);
-        normalise(aValues, aCodec);
+        normalize(aValues, aCodec);
         final int[] bValues = bCodec.decodeInts(n - k, in);
-        normalise(bValues, bCodec);
-        final int[] band = new int[check(n, in)];
+        normalize(bValues, bCodec);
+        final int[] band = new int[Pack200Exception.checkIntArray(check(n, in))];
         System.arraycopy(aValues, 0, band, 0, k);
         System.arraycopy(bValues, 0, band, k, n - k);
         lastBandLength = aCodec.lastBandLength + bCodec.lastBandLength;
@@ -86,19 +91,34 @@ public class RunCodec extends Codec {
         throw new Pack200Exception("Must encode entire band at once with a RunCodec");
     }
 
+    /**
+     * Gets the A codec.
+     *
+     * @return the A codec.
+     */
     public Codec getACodec() {
         return aCodec;
     }
 
+    /**
+     * Gets the B codec.
+     *
+     * @return the B codec.
+     */
     public Codec getBCodec() {
         return bCodec;
     }
 
+    /**
+     * Gets the K value.
+     *
+     * @return the K value.
+     */
     public int getK() {
         return k;
     }
 
-    private int normalise(int value, final Codec codecUsed) {
+    private int normalize(int value, final Codec codecUsed) throws Pack200Exception {
         if (codecUsed instanceof BHSDCodec) {
             final BHSDCodec bhsd = (BHSDCodec) codecUsed;
             if (bhsd.isDelta()) {
@@ -107,14 +127,14 @@ public class RunCodec extends Codec {
                     value -= cardinality;
                 }
                 while (value < bhsd.smallest()) {
-                    value = ExactMath.add(value, cardinality);
+                    value = Pack200Exception.addExact(value, cardinality);
                 }
             }
         }
         return value;
     }
 
-    private void normalise(final int[] band, final Codec codecUsed) {
+    private void normalize(final int[] band, final Codec codecUsed) throws Pack200Exception {
         if (codecUsed instanceof BHSDCodec) {
             final BHSDCodec bhsd = (BHSDCodec) codecUsed;
             if (bhsd.isDelta()) {
@@ -124,7 +144,7 @@ public class RunCodec extends Codec {
                         band[i] -= cardinality;
                     }
                     while (band[i] < bhsd.smallest()) {
-                        band[i] = ExactMath.add(band[i], cardinality);
+                        band[i] = Pack200Exception.addExact(band[i], cardinality);
                     }
                 }
             }
@@ -143,7 +163,7 @@ public class RunCodec extends Codec {
                             band[i] -= cardinality;
                         }
                         while (band[i] < bhsd.smallest()) {
-                            band[i] = ExactMath.add(band[i], cardinality);
+                            band[i] = Pack200Exception.addExact(band[i], cardinality);
                         }
                     }
                 }

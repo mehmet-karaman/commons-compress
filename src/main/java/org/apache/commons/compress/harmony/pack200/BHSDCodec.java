@@ -25,8 +25,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.commons.compress.utils.ExactMath;
-
 /**
  * A BHSD codec is a means of encoding integer values as a sequence of bytes or vice versa using a specified "BHSD" encoding mechanism. It uses a
  * variable-length encoding and a modified sign representation such that small numbers are represented as a single byte, whilst larger numbers take more bytes
@@ -61,6 +59,8 @@ import org.apache.commons.compress.utils.ExactMath;
  * value. Those that start with U ({@link #UDELTA5}, {@link #UNSIGNED5}) are unsigned; otherwise, in most cases, they are signed. The presence of the word Delta
  * ({@link #DELTA5}, {@link #UDELTA5}) indicates a delta encoding is used.
  * </p>
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public final class BHSDCodec extends Codec {
 
@@ -183,7 +183,7 @@ public final class BHSDCodec extends Codec {
             result = 3L * cardinality() / 4 - 1;
             break;
         default:
-            throw new Error("Unknown s value");
+            throw new IllegalStateException("Unknown s value");
         }
         return Math.min((s == 0 ? (long) Integer.MAX_VALUE << 1 : Integer.MAX_VALUE) - 1, result);
     }
@@ -281,7 +281,7 @@ public final class BHSDCodec extends Codec {
                     band[i] -= cardinality;
                 }
                 while (band[i] < smallest) {
-                    band[i] = ExactMath.add(band[i], cardinality);
+                    band[i] = Pack200Exception.addExact(band[i], cardinality);
                 }
             }
         }
@@ -297,7 +297,7 @@ public final class BHSDCodec extends Codec {
                     band[i] -= cardinality;
                 }
                 while (band[i] < smallest) {
-                    band[i] = ExactMath.add(band[i], cardinality);
+                    band[i] = Pack200Exception.addExact(band[i], cardinality);
                 }
             }
         }
@@ -312,9 +312,8 @@ public final class BHSDCodec extends Codec {
     @Override
     public byte[] encode(final int value, final int last) throws Pack200Exception {
         if (!encodes(value)) {
-            throw new Pack200Exception("The codec " + this + " does not encode the value " + value);
+            throw new Pack200Exception("The codec %s does not encode the value %s", this, value);
         }
-
         long z = value;
         if (isDelta()) {
             z -= last;
@@ -338,9 +337,8 @@ public final class BHSDCodec extends Codec {
             z += Math.min(cardinality, 4294967296L);
         }
         if (z < 0) {
-            throw new Pack200Exception("unable to encode");
+            throw new Pack200Exception("Unable to encode");
         }
-
         final List<Byte> byteList = new ArrayList<>();
         for (int n = 0; n < b; n++) {
             long byteN;

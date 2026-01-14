@@ -33,6 +33,12 @@ import java.io.OutputStream;
 public class CountingOutputStream extends FilterOutputStream {
     private long bytesWritten;
 
+    /**
+     * Creates a {@code CountingOutputStream} filter built on top of the specified underlying output stream.
+     *
+     * @param out the underlying output stream to be assigned to the field {@code this.out} for later use, or {@code null} if this instance is to be created
+     *            without an underlying stream.
+     */
     public CountingOutputStream(final OutputStream out) {
         super(out);
     }
@@ -40,7 +46,7 @@ public class CountingOutputStream extends FilterOutputStream {
     /**
      * Increments the counter of already written bytes. Doesn't increment if the EOF has been hit (written == -1)
      *
-     * @param written the number of bytes written
+     * @param written the number of bytes written.
      */
     protected void count(final long written) {
         if (written != -1) {
@@ -51,7 +57,7 @@ public class CountingOutputStream extends FilterOutputStream {
     /**
      * Returns the current number of bytes written to this stream.
      *
-     * @return the number of written bytes
+     * @return the number of written bytes.
      */
     public long getBytesWritten() {
         return bytesWritten;

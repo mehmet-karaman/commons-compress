@@ -24,13 +24,30 @@ import org.apache.commons.compress.harmony.unpack200.bytecode.OperandManager;
 
 /**
  * This class is used for representations of cldc and cldc_w. In these cases, a narrow class ref has one byte and a wide class ref has two bytes.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class NarrowClassRefForm extends ClassRefForm {
 
+    /**
+     * Constructs a new instance with the specified opcode, name, operandType and rewrite.
+     *
+     * @param opcode  index corresponding to the opcode's value.
+     * @param name    String printable name of the opcode.
+     * @param rewrite Operand positions (which will later be rewritten in ByteCodes) are indicated by -1.
+     */
     public NarrowClassRefForm(final int opcode, final String name, final int[] rewrite) {
         super(opcode, name, rewrite);
     }
 
+    /**
+     * Constructs a new instance with the specified opcode, name, operandType and rewrite.
+     *
+     * @param opcode  index corresponding to the opcode's value.
+     * @param name    String printable name of the opcode.
+     * @param rewrite Operand positions (which will later be rewritten in ByteCodes) are indicated by -1.
+     * @param widened true if this is a widened form.
+     */
     public NarrowClassRefForm(final int opcode, final String name, final int[] rewrite, final boolean widened) {
         super(opcode, name, rewrite, widened);
     }

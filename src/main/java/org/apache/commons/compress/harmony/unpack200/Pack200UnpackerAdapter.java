@@ -40,6 +40,8 @@ import org.apache.commons.lang3.reflect.FieldUtils;
 
 /**
  * This class provides the binding between the standard Pack200 interface and the internal interface for (un)packing.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class Pack200UnpackerAdapter extends Pack200Adapter implements Unpacker {
 
@@ -125,8 +127,8 @@ public class Pack200UnpackerAdapter extends Pack200Adapter implements Unpacker {
      *
      * @param url The URL.
      * @return a new BoundedInputStream
-     * @throws IOException        if an I/O error occurs
-     * @throws URISyntaxException
+     * @throws IOException        if an I/O error occurs.
+     * @throws URISyntaxException if the URL is not formatted strictly according to RFC2396 and cannot be converted to a URI.
      */
     static BoundedInputStream newBoundedInputStream(final URL url) throws IOException, URISyntaxException {
         return newBoundedInputStream(Paths.get(url.toURI()));
@@ -165,6 +167,12 @@ public class Pack200UnpackerAdapter extends Pack200Adapter implements Unpacker {
         return inputStream instanceof FilterInputStream ? unwrap((FilterInputStream) inputStream) : inputStream;
     }
 
+    /**
+     * Constructs a new Pack200UnpackerAdapter.
+     */
+    public Pack200UnpackerAdapter() {
+    }
+
     @Override
     public void unpack(final File file, final JarOutputStream out) throws IOException {
         if (file == null) {
@@ -191,8 +199,8 @@ public class Pack200UnpackerAdapter extends Pack200Adapter implements Unpacker {
         completed(0);
         try {
             new Archive(in, out).unpack();
-        } catch (final Pack200Exception e) {
-            throw new IOException("Failed to unpack Jar:" + e);
+        } catch (final Pack200Exception | RuntimeException e) {
+            throw new Pack200Exception("Failed to unpack JAR: " + e, e);
         }
         completed(1);
     }

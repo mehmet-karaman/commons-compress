@@ -25,21 +25,25 @@
 package org.apache.commons.compress.archivers.tar;
 
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.compress.archivers.ArchiveEntry;
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.archivers.ArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipEncoding;
 import org.apache.commons.compress.archivers.zip.ZipEncodingHelper;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.apache.commons.compress.utils.ArchiveUtils;
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 
 /**
@@ -50,14 +54,64 @@ import org.apache.commons.io.input.BoundedInputStream;
  */
 public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
 
+    // @formatter:off
+    /**
+     * Builds a new {@link GzipCompressorInputStream}.
+     *
+     * <p>
+     * For example:
+     * </p>
+     * <pre>{@code
+     * TarArchiveInputStream s = TarArchiveInputStream.builder()
+     *   .setPath(path)
+     *   .setLenient(true)
+     *   .setFileNameCharset(StandardCharsets.UTF_8)
+     *   .get();}
+     * </pre>
+     *
+     * @see #get()
+     * @since 1.29.0
+     */
+    // @formatter:on
+    public static final class Builder extends AbstractTarBuilder<TarArchiveInputStream, Builder> {
+
+        /**
+         * Constructs a new instance.
+         */
+        private Builder() {
+            // empty
+        }
+
+        @Override
+        public TarArchiveInputStream get() throws IOException {
+            return new TarArchiveInputStream(this);
+        }
+
+    }
+
+    /**
+     * IBM AIX <a href=""https://www.ibm.com/docs/sv/aix/7.2.0?topic=files-tarh-file">tar.h</a>: "This field is terminated with a space only."
+     */
+    private static final String VERSION_AIX = "0 ";
+
     private static final int SMALL_BUFFER_SIZE = 256;
+
+    /**
+     * Creates a new builder.
+     *
+     * @return a new builder.
+     * @since 1.29.0
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
 
     /**
      * Checks if the signature matches what is expected for a tar file.
      *
-     * @param signature the bytes to check
-     * @param length    the number of bytes to check
-     * @return true, if this stream is a tar archive stream, false otherwise
+     * @param signature the bytes to check.
+     * @param length    the number of bytes to check.
+     * @return true, if this stream is a tar archive stream, false otherwise.
      */
     public static boolean matches(final byte[] signature, final int length) {
         final int versionOffset = TarConstants.VERSION_OFFSET;
@@ -65,11 +119,15 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
         if (length < versionOffset + versionLen) {
             return false;
         }
-
         final int magicOffset = TarConstants.MAGIC_OFFSET;
         final int magicLen = TarConstants.MAGICLEN;
         if (ArchiveUtils.matchAsciiBuffer(TarConstants.MAGIC_POSIX, signature, magicOffset, magicLen)
                 && ArchiveUtils.matchAsciiBuffer(TarConstants.VERSION_POSIX, signature, versionOffset, versionLen)) {
+            return true;
+        }
+        // IBM AIX tar.h https://www.ibm.com/docs/sv/aix/7.2.0?topic=files-tarh-file : "This field is terminated with a space only."
+        if (ArchiveUtils.matchAsciiBuffer(TarConstants.MAGIC_POSIX, signature, magicOffset, magicLen)
+                && ArchiveUtils.matchAsciiBuffer(VERSION_AIX, signature, versionOffset, versionLen)) {
             return true;
         }
         if (ArchiveUtils.matchAsciiBuffer(TarConstants.MAGIC_GNU, signature, magicOffset, magicLen)
@@ -93,132 +151,182 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
     /** True if stream is at EOF. */
     private boolean atEof;
 
-    /** Size of the current . */
-    private long entrySize;
-
     /** How far into the entry the stream is at. */
     private long entryOffset;
 
-    /** Input streams for reading sparse entries. **/
-    private List<InputStream> sparseInputStreams;
-
-    /** The index of current input stream being read when reading sparse entries. */
-    private int currentSparseInputStreamIndex;
-
     /** The meta-data about the current entry. */
     private TarArchiveEntry currEntry;
+
+    /** The current input stream. */
+    private InputStream currentInputStream;
 
     /** The encoding of the file. */
     private final ZipEncoding zipEncoding;
 
     /** The global PAX header. */
-    private Map<String, String> globalPaxHeaders = new HashMap<>();
+    private final Map<String, String> globalPaxHeaders = new HashMap<>();
 
     /** The global sparse headers, this is only used in PAX Format 0.X. */
     private final List<TarArchiveStructSparse> globalSparseHeaders = new ArrayList<>();
 
     private final boolean lenient;
 
-    /**
-     * Constructs a new instance.
-     *
-     * @param inputStream the input stream to use
-     */
-    public TarArchiveInputStream(final InputStream inputStream) {
-        this(inputStream, TarConstants.DEFAULT_BLKSIZE, TarConstants.DEFAULT_RCDSIZE);
+    private TarArchiveInputStream(final Builder builder) throws IOException {
+        super(builder);
+        this.zipEncoding = ZipEncodingHelper.getZipEncoding(builder.getCharset());
+        this.recordBuffer = new byte[builder.getRecordSize()];
+        this.blockSize = builder.getBlockSize();
+        this.lenient = builder.isLenient();
     }
 
     /**
      * Constructs a new instance.
      *
-     * @param inputStream the input stream to use
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param inputStream the input stream to use.
+     * @throws IOException If the builder fails to create the underlying {@link InputStream}.
+     */
+    public TarArchiveInputStream(final InputStream inputStream) throws IOException {
+        this(builder().setInputStream(inputStream));
+    }
+
+    /**
+     * Constructs a new instance with default values.
+     *
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param inputStream the input stream to use.
      * @param lenient     when set to true illegal values for group/userid, mode, device numbers and timestamp will be ignored and the fields set to
      *                    {@link TarArchiveEntry#UNKNOWN}. When set to false such illegal fields cause an exception instead.
+     * @throws IOException if an I/O error occurs.
      * @since 1.19
+     * @deprecated Since 1.29.0, use {@link #builder()}.
      */
-    public TarArchiveInputStream(final InputStream inputStream, final boolean lenient) {
-        this(inputStream, TarConstants.DEFAULT_BLKSIZE, TarConstants.DEFAULT_RCDSIZE, null, lenient);
+    @Deprecated
+    public TarArchiveInputStream(final InputStream inputStream, final boolean lenient) throws IOException {
+        this(builder().setInputStream(inputStream).setLenient(lenient));
     }
 
     /**
      * Constructs a new instance.
      *
-     * @param inputStream the input stream to use
-     * @param blockSize   the block size to use
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param inputStream the input stream to use.
+     * @param blockSize   the block size to use.
+     * @throws IOException if an I/O error occurs.
+     * @deprecated Since 1.29.0, use {@link #builder()}.
      */
-    public TarArchiveInputStream(final InputStream inputStream, final int blockSize) {
-        this(inputStream, blockSize, TarConstants.DEFAULT_RCDSIZE);
+    @Deprecated
+    public TarArchiveInputStream(final InputStream inputStream, final int blockSize) throws IOException {
+        this(builder().setInputStream(inputStream).setBlockSize(blockSize));
     }
 
     /**
      * Constructs a new instance.
      *
-     * @param inputStream the input stream to use
-     * @param blockSize   the block size to use
-     * @param recordSize  the record size to use
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param inputStream the input stream to use.
+     * @param blockSize   the block size to use.
+     * @param recordSize  the record size to use.
+     * @throws IOException if an I/O error occurs.
+     * @deprecated Since 1.29.0, use {@link #builder()}.
      */
-    public TarArchiveInputStream(final InputStream inputStream, final int blockSize, final int recordSize) {
-        this(inputStream, blockSize, recordSize, null);
+    @Deprecated
+    public TarArchiveInputStream(final InputStream inputStream, final int blockSize, final int recordSize) throws IOException {
+        this(builder().setInputStream(inputStream).setBlockSize(blockSize).setRecordSize(recordSize));
     }
 
     /**
      * Constructs a new instance.
      *
-     * @param inputStream the input stream to use
-     * @param blockSize   the block size to use
-     * @param recordSize  the record size to use
-     * @param encoding    name of the encoding to use for file names
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param inputStream the input stream to use.
+     * @param blockSize   the block size to use.
+     * @param recordSize  the record size to use.
+     * @param encoding    name of the encoding to use for file names.
+     * @throws IOException if an I/O error occurs.
      * @since 1.4
+     * @deprecated Since 1.29.0, use {@link #builder()}.
      */
-    public TarArchiveInputStream(final InputStream inputStream, final int blockSize, final int recordSize, final String encoding) {
-        this(inputStream, blockSize, recordSize, encoding, false);
+    @Deprecated
+    public TarArchiveInputStream(final InputStream inputStream, final int blockSize, final int recordSize, final String encoding) throws IOException {
+        this(builder().setInputStream(inputStream).setBlockSize(blockSize).setRecordSize(recordSize).setCharset(encoding));
     }
 
     /**
      * Constructs a new instance.
      *
-     * @param inputStream the input stream to use
-     * @param blockSize   the block size to use
-     * @param recordSize  the record size to use
-     * @param encoding    name of the encoding to use for file names
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param inputStream the input stream to use.
+     * @param blockSize   the block size to use.
+     * @param recordSize  the record size to use.
+     * @param encoding    name of the encoding to use for file names.
      * @param lenient     when set to true illegal values for group/userid, mode, device numbers and timestamp will be ignored and the fields set to
      *                    {@link TarArchiveEntry#UNKNOWN}. When set to false such illegal fields cause an exception instead.
+     * @throws IOException if an I/O error occurs.
      * @since 1.19
+     * @deprecated Since 1.29.0, use {@link #builder()}.
      */
-    public TarArchiveInputStream(final InputStream inputStream, final int blockSize, final int recordSize, final String encoding, final boolean lenient) {
-        super(inputStream, encoding);
-        this.zipEncoding = ZipEncodingHelper.getZipEncoding(encoding);
-        this.recordBuffer = new byte[recordSize];
-        this.blockSize = blockSize;
-        this.lenient = lenient;
+    @Deprecated
+    public TarArchiveInputStream(final InputStream inputStream, final int blockSize, final int recordSize, final String encoding,
+            final boolean lenient) throws IOException {
+        // @formatter:off
+        this(builder()
+                .setInputStream(inputStream)
+                .setBlockSize(blockSize)
+                .setRecordSize(recordSize)
+                .setCharset(encoding)
+                .setLenient(lenient));
+        // @formatter:on
     }
 
     /**
      * Constructs a new instance.
      *
-     * @param inputStream the input stream to use
-     * @param blockSize   the block size to use
-     * @param encoding    name of the encoding to use for file names
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param inputStream the input stream to use.
+     * @param blockSize   the block size to use.
+     * @param encoding    name of the encoding to use for file names.
+     * @throws IOException if an I/O error occurs.
      * @since 1.4
+     * @deprecated Since 1.29.0, use {@link #builder()}.
      */
-    public TarArchiveInputStream(final InputStream inputStream, final int blockSize, final String encoding) {
-        this(inputStream, blockSize, TarConstants.DEFAULT_RCDSIZE, encoding);
+    @Deprecated
+    public TarArchiveInputStream(final InputStream inputStream, final int blockSize, final String encoding) throws IOException {
+        this(builder().setInputStream(inputStream).setBlockSize(blockSize).setCharset(encoding));
     }
 
     /**
      * Constructs a new instance.
      *
-     * @param inputStream the input stream to use
-     * @param encoding    name of the encoding to use for file names
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param inputStream the input stream to use.
+     * @param encoding    name of the encoding to use for file names.
+     * @throws IOException if an I/O error occurs.
      * @since 1.4
+     * @deprecated Since 1.29.0, use {@link #builder()}.
      */
-    public TarArchiveInputStream(final InputStream inputStream, final String encoding) {
-        this(inputStream, TarConstants.DEFAULT_BLKSIZE, TarConstants.DEFAULT_RCDSIZE, encoding);
+    @Deprecated
+    public TarArchiveInputStream(final InputStream inputStream, final String encoding) throws IOException {
+        this(builder().setInputStream(inputStream).setCharset(encoding));
     }
 
-    private void applyPaxHeadersToCurrentEntry(final Map<String, String> headers, final List<TarArchiveStructSparse> sparseHeaders) throws IOException {
-        currEntry.updateEntryFromPaxHeaders(headers);
-        currEntry.setSparseHeaders(sparseHeaders);
+    private void afterRead(final int read) throws IOException {
+        // Count the bytes read
+        count(read);
+        // Check for truncated entries
+        if (read == -1 && entryOffset < currEntry.getSize()) {
+            throw new EOFException(String.format("Truncated TAR archive: Entry '%s' expected %,d bytes, actual %,d", currEntry.getName(), currEntry.getSize(),
+                    entryOffset));
+        }
+        entryOffset += Math.max(0, read);
     }
 
     /**
@@ -227,7 +335,7 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
      * Integer.MAX_VALUE is returned in case more than Integer.MAX_VALUE bytes are left in the current entry in the archive.
      *
      * @return The number of available bytes for the current entry.
-     * @throws IOException for signature
+     * @throws IOException for signature.
      */
     @Override
     public int available() throws IOException {
@@ -249,11 +357,8 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
      * </p>
      */
     private void buildSparseInputStreams() throws IOException {
-        currentSparseInputStreamIndex = -1;
-        sparseInputStreams = new ArrayList<>();
-
+        final List<InputStream> sparseInputStreams = new ArrayList<>();
         final List<TarArchiveStructSparse> sparseHeaders = currEntry.getOrderedSparseHeaders();
-
         // Stream doesn't need to be closed at all as it doesn't use any resources
         final InputStream zeroInputStream = new TarArchiveSparseZeroInputStream(); // NOSONAR
         // logical offset into the extracted entry
@@ -262,7 +367,7 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
             final long zeroBlockSize = sparseHeader.getOffset() - offset;
             if (zeroBlockSize < 0) {
                 // sparse header says to move backwards inside the extracted entry
-                throw new IOException("Corrupted struct sparse detected");
+                throw new ArchiveException("Corrupted struct sparse detected");
             }
             // only store the zero block if it is not empty
             if (zeroBlockSize > 0) {
@@ -278,21 +383,21 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
                 // @formatter:off
                 sparseInputStreams.add(BoundedInputStream.builder()
                         .setInputStream(in)
+                        .setAfterRead(this::afterRead)
                         .setMaxCount(sparseHeader.getNumbytes())
+                        .setPropagateClose(false)
                         .get());
                 // @formatter:on
             }
             offset = sparseHeader.getOffset() + sparseHeader.getNumbytes();
         }
-        if (!sparseInputStreams.isEmpty()) {
-            currentSparseInputStreamIndex = 0;
-        }
+        currentInputStream = new SequenceInputStream(Collections.enumeration(sparseInputStreams));
     }
 
     /**
-     * Whether this class is able to read the given entry.
+     * Tests whether this class is able to read the given entry.
      *
-     * @return The implementation will return true if the {@link ArchiveEntry} is an instance of {@link TarArchiveEntry}
+     * @return The implementation will return true if the {@link ArchiveEntry} is an instance of {@link TarArchiveEntry}.
      */
     @Override
     public boolean canReadEntryData(final ArchiveEntry archiveEntry) {
@@ -302,15 +407,14 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
     /**
      * Closes this stream. Calls the TarBuffer's close() method.
      *
-     * @throws IOException on error
+     * @throws IOException on error.
      */
     @Override
     public void close() throws IOException {
         // Close all the input streams in sparseInputStreams
-        if (sparseInputStreams != null) {
-            for (final InputStream inputStream : sparseInputStreams) {
-                inputStream.close();
-            }
+        if (currentInputStream != null) {
+            currentInputStream.close();
+            currentInputStream = null;
         }
         in.close();
     }
@@ -327,29 +431,9 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
     }
 
     /**
-     * For FileInputStream, the skip always return the number you input, so we need the available bytes to determine how many bytes are actually skipped
-     *
-     * @param available available bytes returned by inputStream.available()
-     * @param skipped   skipped bytes returned by inputStream.skip()
-     * @param expected  bytes expected to skip
-     * @return number of bytes actually skipped
-     * @throws IOException if a truncated tar archive is detected
-     */
-    private long getActuallySkipped(final long available, final long skipped, final long expected) throws IOException {
-        long actuallySkipped = skipped;
-        if (in instanceof FileInputStream) {
-            actuallySkipped = Math.min(skipped, available);
-        }
-        if (actuallySkipped != expected) {
-            throw new IOException("Truncated TAR archive");
-        }
-        return actuallySkipped;
-    }
-
-    /**
      * Gets the current TAR Archive Entry that this input stream is processing
      *
-     * @return The current Archive Entry
+     * @return The current Archive Entry.
      */
     public TarArchiveEntry getCurrentEntry() {
         return currEntry;
@@ -359,8 +443,11 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
      * Gets the next entry in this tar archive as long name data.
      *
      * @return The next entry in the archive as long name data, or null.
-     * @throws IOException on error
+     * @throws IOException on error.
+     *
+     * @deprecated Since 1.29.0 without replacement.
      */
+    @Deprecated
     protected byte[] getLongNameData() throws IOException {
         // read in the name
         final ByteArrayOutputStream longName = new ByteArrayOutputStream();
@@ -387,14 +474,78 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
     }
 
     /**
-     * Gets the next TarArchiveEntry in this stream.
+     * Advances to the next file entry in the tar archive.
+     * <p>
+     *     Skips any remaining data in the current entry, then reads and returns the next file entry.
+     *     Handles special records (PAX, GNU long name, sparse, etc.) and applies PAX headers as needed.
+     * </p>
      *
-     * @return the next entry, or {@code null} if there are no more entries
-     * @throws IOException if the next entry could not be read
+     * @return the next file entry, or {@code null} if there are no more entries.
+     * @throws IOException if the next entry could not be read or the archive is malformed.
      */
     @Override
     public TarArchiveEntry getNextEntry() throws IOException {
-        return getNextTarEntry();
+        if (isAtEOF()) {
+            return null;
+        }
+        final Map<String, String> paxHeaders = new HashMap<>();
+        final List<TarArchiveStructSparse> sparseHeaders = new ArrayList<>();
+        // Handle special tar records
+        boolean lastWasSpecial = false;
+        do {
+            // If there is a current entry, skip any unread data and padding
+            if (currentInputStream != null) {
+                IOUtils.consume(currentInputStream); // Skip to end of current entry
+                skipRecordPadding(); // Skip padding to align to the next record
+            }
+            // Read the next header record
+            final byte[] headerBuf = getRecord();
+            if (headerBuf == null) {
+                // If we encountered special records but no file entry, the archive is malformed
+                if (lastWasSpecial) {
+                    throw new ArchiveException("Premature end of tar archive. Didn't find any file entry after GNU or PAX record.");
+                }
+                currEntry = null;
+                return null; // End of archive
+            }
+            // Parse the header into a new entry
+            currEntry = new TarArchiveEntry(globalPaxHeaders, headerBuf, zipEncoding, lenient);
+            // Set up the input stream for the new entry
+            currentInputStream = BoundedInputStream.builder()
+                    .setInputStream(in)
+                    .setAfterRead(this::afterRead)
+                    .setMaxCount(currEntry.getSize())
+                    .setPropagateClose(false)
+                    .get();
+            entryOffset = 0;
+            lastWasSpecial = TarUtils.isSpecialTarRecord(currEntry);
+            if (lastWasSpecial) {
+                // Handle PAX, GNU long name, or other special records
+                TarUtils.handleSpecialTarRecord(currentInputStream, zipEncoding, getMaxEntryNameLength(), currEntry, paxHeaders, sparseHeaders,
+                        globalPaxHeaders, globalSparseHeaders);
+            }
+        } while (lastWasSpecial);
+        // Apply global and local PAX headers
+        TarUtils.applyPaxHeadersToEntry(currEntry, paxHeaders, sparseHeaders, globalPaxHeaders, globalSparseHeaders);
+        // Handle sparse files
+        if (currEntry.isSparse()) {
+            if (currEntry.isOldGNUSparse()) {
+                // Old GNU sparse format uses extra header blocks for metadata.
+                // These blocks are not included in the entry’s size, so we cannot
+                // rely on BoundedInputStream here.
+                readOldGNUSparse();
+            } else if (currEntry.isPaxGNU1XSparse()) {
+                currEntry.setSparseHeaders(TarUtils.parsePAX1XSparseHeaders(currentInputStream, getRecordSize()));
+            }
+            // sparse headers are all done reading, we need to build
+            // sparse input streams using these sparse headers
+            buildSparseInputStreams();
+        }
+        // Ensure directory names end with a slash
+        if (currEntry.isDirectory() && !currEntry.getName().endsWith("/")) {
+            currEntry.setName(currEntry.getName() + "/");
+        }
+        return currEntry;
     }
 
     /**
@@ -403,91 +554,12 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
      * the archive, null will be returned to indicate that the end of the archive has been reached.
      *
      * @return The next TarEntry in the archive, or null.
-     * @throws IOException on error
+     * @throws IOException on error.
      * @deprecated Use {@link #getNextEntry()}.
      */
     @Deprecated
     public TarArchiveEntry getNextTarEntry() throws IOException {
-        if (isAtEOF()) {
-            return null;
-        }
-
-        if (currEntry != null) {
-            /* Skip will only go to the end of the current entry */
-            IOUtils.skip(this, Long.MAX_VALUE);
-
-            /* skip to the end of the last record */
-            skipRecordPadding();
-        }
-
-        final byte[] headerBuf = getRecord();
-
-        if (headerBuf == null) {
-            /* hit EOF */
-            currEntry = null;
-            return null;
-        }
-
-        try {
-            currEntry = new TarArchiveEntry(globalPaxHeaders, headerBuf, zipEncoding, lenient);
-        } catch (final IllegalArgumentException e) {
-            throw new IOException("Error detected parsing the header", e);
-        }
-
-        entryOffset = 0;
-        entrySize = currEntry.getSize();
-
-        if (currEntry.isGNULongLinkEntry()) {
-            final byte[] longLinkData = getLongNameData();
-            if (longLinkData == null) {
-                // Bugzilla: 40334
-                // Malformed tar file - long link entry name not followed by entry
-                return null;
-            }
-            currEntry.setLinkName(zipEncoding.decode(longLinkData));
-        }
-
-        if (currEntry.isGNULongNameEntry()) {
-            final byte[] longNameData = getLongNameData();
-            if (longNameData == null) {
-                // Bugzilla: 40334
-                // Malformed tar file - long entry name not followed by entry
-                return null;
-            }
-
-            // COMPRESS-509 : the name of directories should end with '/'
-            final String name = zipEncoding.decode(longNameData);
-            currEntry.setName(name);
-            if (currEntry.isDirectory() && !name.endsWith("/")) {
-                currEntry.setName(name + "/");
-            }
-        }
-
-        if (currEntry.isGlobalPaxHeader()) { // Process Global Pax headers
-            readGlobalPaxHeaders();
-        }
-
-        try {
-            if (currEntry.isPaxHeader()) { // Process Pax headers
-                paxHeaders();
-            } else if (!globalPaxHeaders.isEmpty()) {
-                applyPaxHeadersToCurrentEntry(globalPaxHeaders, globalSparseHeaders);
-            }
-        } catch (final NumberFormatException e) {
-            throw new IOException("Error detected parsing the pax header", e);
-        }
-
-        if (currEntry.isOldGNUSparse()) { // Process sparse files
-            readOldGNUSparse();
-        }
-
-        // If the size of the next element in the archive has changed
-        // due to a new size being reported in the POSIX header
-        // information, we update entrySize here so that it contains
-        // the correct value.
-        entrySize = currEntry.getSize();
-
-        return currEntry;
+        return getNextEntry();
     }
 
     /**
@@ -499,7 +571,7 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
      * </p>
      *
      * @return The next header in the archive, or null.
-     * @throws IOException on error
+     * @throws IOException on error.
      */
     private byte[] getRecord() throws IOException {
         byte[] headerBuf = readRecord();
@@ -538,7 +610,7 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
      * Tests if an archive record indicate End of Archive. End of archive is indicated by a record that consists entirely of null bytes.
      *
      * @param record The record data to check.
-     * @return true if the record data is an End of Archive
+     * @return true if the record data is an End of Archive.
      */
     protected boolean isEOFRecord(final byte[] record) {
         return record == null || ArchiveUtils.isArrayZero(record, getRecordSize());
@@ -556,55 +628,11 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
     /**
      * Since we do not support marking just yet, we return false.
      *
-     * @return false.
+     * @return Always false.
      */
     @Override
     public boolean markSupported() {
         return false;
-    }
-
-    /**
-     * For PAX Format 0.0, the sparse headers(GNU.sparse.offset and GNU.sparse.numbytes) may appear multi times, and they look like:
-     * <p>
-     * GNU.sparse.size=size GNU.sparse.numblocks=numblocks repeat numblocks times GNU.sparse.offset=offset GNU.sparse.numbytes=numbytes end repeat
-     * </p>
-     * <p>
-     * For PAX Format 0.1, the sparse headers are stored in a single variable : GNU.sparse.map
-     * </p>
-     * <p>
-     * GNU.sparse.map Map of non-null data chunks. It is a string consisting of comma-separated values "offset,size[,offset-1,size-1...]"
-     * </p>
-     * <p>
-     * For PAX Format 1.X: The sparse map itself is stored in the file data block, preceding the actual file data. It consists of a series of decimal numbers
-     * delimited by newlines. The map is padded with nulls to the nearest block boundary. The first number gives the number of entries in the map. Following are
-     * map entries, each one consisting of two numbers giving the offset and size of the data block it describes.
-     * </p>
-     *
-     * @throws IOException
-     */
-    private void paxHeaders() throws IOException {
-        List<TarArchiveStructSparse> sparseHeaders = new ArrayList<>();
-        final Map<String, String> headers = TarUtils.parsePaxHeaders(this, sparseHeaders, globalPaxHeaders, entrySize);
-
-        // for 0.1 PAX Headers
-        if (headers.containsKey(TarGnuSparseKeys.MAP)) {
-            sparseHeaders = new ArrayList<>(TarUtils.parseFromPAX01SparseHeaders(headers.get(TarGnuSparseKeys.MAP)));
-        }
-        getNextEntry(); // Get the actual file entry
-        if (currEntry == null) {
-            throw new IOException("premature end of tar archive. Didn't find any entry after PAX header.");
-        }
-        applyPaxHeadersToCurrentEntry(headers, sparseHeaders);
-
-        // for 1.0 PAX Format, the sparse map is stored in the file data block
-        if (currEntry.isPaxGNU1XSparse()) {
-            sparseHeaders = TarUtils.parsePAX1XSparseHeaders(in, getRecordSize());
-            currEntry.setSparseHeaders(sparseHeaders);
-        }
-
-        // sparse headers are all done reading, we need to build
-        // sparse input streams using these sparse headers
-        buildSparseInputStreams();
     }
 
     /**
@@ -617,62 +645,30 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
      * @param offset    The offset at which to place bytes read.
      * @param numToRead The number of bytes to read.
      * @return The number of bytes read, or -1 at EOF.
-     * @throws IOException on error
+     * @throws NullPointerException      if {@code buf} is null.
+     * @throws IndexOutOfBoundsException if {@code offset} or {@code numToRead} are negative,
+     *                                   or if {@code offset + numToRead} is greater than {@code buf.length}.
+     * @throws IOException on error.
      */
     @Override
     public int read(final byte[] buf, final int offset, int numToRead) throws IOException {
+        IOUtils.checkFromIndexSize(buf, offset, numToRead);
         if (numToRead == 0) {
             return 0;
         }
-        int totalRead = 0;
-
         if (isAtEOF() || isDirectory()) {
             return -1;
         }
-
-        if (currEntry == null) {
+        if (currEntry == null || currentInputStream == null) {
             throw new IllegalStateException("No current tar entry");
         }
-
-        if (entryOffset >= currEntry.getRealSize()) {
-            return -1;
-        }
-
-        numToRead = Math.min(numToRead, available());
-
-        if (currEntry.isSparse()) {
-            // for sparse entries, we need to read them in another way
-            totalRead = readSparse(buf, offset, numToRead);
-        } else {
-            totalRead = in.read(buf, offset, numToRead);
-        }
-
-        if (totalRead == -1) {
-            if (numToRead > 0) {
-                throw new IOException("Truncated TAR archive");
-            }
-            setAtEOF(true);
-        } else {
-            count(totalRead);
-            entryOffset += totalRead;
-        }
-
-        return totalRead;
-    }
-
-    private void readGlobalPaxHeaders() throws IOException {
-        globalPaxHeaders = TarUtils.parsePaxHeaders(this, globalSparseHeaders, globalPaxHeaders, entrySize);
-        getNextEntry(); // Get the actual file entry
-
-        if (currEntry == null) {
-            throw new IOException("Error detected parsing the pax header");
-        }
+        return currentInputStream.read(buf, offset, numToRead);
     }
 
     /**
      * Adds the sparse chunks from the current entry to the sparse chunks, including any additional sparse entries following the current entry.
      *
-     * @throws IOException on error
+     * @throws IOException on error.
      */
     private void readOldGNUSparse() throws IOException {
         if (currEntry.isExtended()) {
@@ -680,78 +676,27 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
             do {
                 final byte[] headerBuf = getRecord();
                 if (headerBuf == null) {
-                    throw new IOException("premature end of tar archive. Didn't find extended_header after header with extended flag.");
+                    throw new ArchiveException("Premature end of tar archive. Didn't find extended_header after header with extended flag.");
                 }
                 entry = new TarArchiveSparseEntry(headerBuf);
                 currEntry.getSparseHeaders().addAll(entry.getSparseHeaders());
             } while (entry.isExtended());
         }
-
-        // sparse headers are all done reading, we need to build
-        // sparse input streams using these sparse headers
-        buildSparseInputStreams();
     }
 
     /**
-     * Read a record from the input stream and return the data.
+     * Reads a record from the input stream and return the data.
      *
      * @return The record data or null if EOF has been hit.
-     * @throws IOException on error
+     * @throws IOException on error.
      */
     protected byte[] readRecord() throws IOException {
-        final int readCount = IOUtils.readFully(in, recordBuffer);
+        final int readCount = IOUtils.read(in, recordBuffer);
         count(readCount);
         if (readCount != getRecordSize()) {
             return null;
         }
-
         return recordBuffer;
-    }
-
-    /**
-     * For sparse tar entries, there are many "holes"(consisting of all 0) in the file. Only the non-zero data is stored in tar files, and they are stored
-     * separately. The structure of non-zero data is introduced by the sparse headers using the offset, where a block of non-zero data starts, and numbytes, the
-     * length of the non-zero data block. When reading sparse entries, the actual data is read out with "holes" and non-zero data combined together according to
-     * the sparse headers.
-     *
-     * @param buf       The buffer into which to place bytes read.
-     * @param offset    The offset at which to place bytes read.
-     * @param numToRead The number of bytes to read.
-     * @return The number of bytes read, or -1 at EOF.
-     * @throws IOException on error
-     */
-    private int readSparse(final byte[] buf, final int offset, final int numToRead) throws IOException {
-        // if there are no actual input streams, just read from the original input stream
-        if (sparseInputStreams == null || sparseInputStreams.isEmpty()) {
-            return in.read(buf, offset, numToRead);
-        }
-        if (currentSparseInputStreamIndex >= sparseInputStreams.size()) {
-            return -1;
-        }
-        final InputStream currentInputStream = sparseInputStreams.get(currentSparseInputStreamIndex);
-        final int readLen = currentInputStream.read(buf, offset, numToRead);
-        // if the current input stream is the last input stream,
-        // just return the number of bytes read from current input stream
-        if (currentSparseInputStreamIndex == sparseInputStreams.size() - 1) {
-            return readLen;
-        }
-        // if EOF of current input stream is meet, open a new input stream and recursively call read
-        if (readLen == -1) {
-            currentSparseInputStreamIndex++;
-            return readSparse(buf, offset, numToRead);
-        }
-        // if the rest data of current input stream is not long enough, open a new input stream
-        // and recursively call read
-        if (readLen < numToRead) {
-            currentSparseInputStreamIndex++;
-            final int readLenOfNext = readSparse(buf, offset + readLen, numToRead - readLen);
-            if (readLenOfNext == -1) {
-                return readLen;
-            }
-            return readLen + readLenOfNext;
-        }
-        // if the rest data of current input stream is enough(which means readLen == len), just return readLen
-        return readLen;
     }
 
     /**
@@ -787,72 +732,35 @@ public class TarArchiveInputStream extends ArchiveInputStream<TarArchiveEntry> {
      *
      * @param n the number of bytes to be skipped.
      * @return the actual number of bytes skipped.
-     * @throws IOException if a truncated tar archive is detected or some other I/O error occurs
+     * @throws IOException if a truncated tar archive is detected or some other I/O error occurs.
      */
     @Override
     public long skip(final long n) throws IOException {
         if (n <= 0 || isDirectory()) {
             return 0;
         }
-
-        final long availableOfInputStream = in.available();
-        final long available = currEntry.getRealSize() - entryOffset;
-        final long numToSkip = Math.min(n, available);
-        long skipped;
-
-        if (!currEntry.isSparse()) {
-            skipped = IOUtils.skip(in, numToSkip);
-            // for non-sparse entry, we should get the bytes actually skipped bytes along with
-            // inputStream.available() if inputStream is instance of FileInputStream
-            skipped = getActuallySkipped(availableOfInputStream, skipped, numToSkip);
-        } else {
-            skipped = skipSparse(numToSkip);
+        if (currEntry == null || currentInputStream == null) {
+            throw new IllegalStateException("No current tar entry");
         }
-
-        count(skipped);
-        entryOffset += skipped;
-        return skipped;
+        // Use Apache Commons IO to skip as it handles skipping fully
+        return IOUtils.skip(currentInputStream, n);
     }
 
     /**
      * The last record block should be written at the full size, so skip any additional space used to fill a record after an entry.
      *
-     * @throws IOException if a truncated tar archive is detected
+     * @throws IOException if a truncated tar archive is detected.
      */
     private void skipRecordPadding() throws IOException {
-        if (!isDirectory() && this.entrySize > 0 && this.entrySize % getRecordSize() != 0) {
-            final long available = in.available();
-            final long numRecords = this.entrySize / getRecordSize() + 1;
-            final long padding = numRecords * getRecordSize() - this.entrySize;
-            long skipped = IOUtils.skip(in, padding);
-
-            skipped = getActuallySkipped(available, skipped, padding);
-
+        final long entrySize = currEntry != null ? currEntry.getSize() : 0;
+        if (!isDirectory() && entrySize > 0 && entrySize % getRecordSize() != 0) {
+            final long padding = getRecordSize() - (entrySize % getRecordSize());
+            final long skipped = IOUtils.skip(in, padding);
             count(skipped);
-        }
-    }
-
-    /**
-     * Skip n bytes from current input stream, if the current input stream doesn't have enough data to skip, jump to the next input stream and skip the rest
-     * bytes, keep doing this until total n bytes are skipped or the input streams are all skipped
-     *
-     * @param n bytes of data to skip
-     * @return actual bytes of data skipped
-     * @throws IOException
-     */
-    private long skipSparse(final long n) throws IOException {
-        if (sparseInputStreams == null || sparseInputStreams.isEmpty()) {
-            return in.skip(n);
-        }
-        long bytesSkipped = 0;
-        while (bytesSkipped < n && currentSparseInputStreamIndex < sparseInputStreams.size()) {
-            final InputStream currentInputStream = sparseInputStreams.get(currentSparseInputStreamIndex);
-            bytesSkipped += currentInputStream.skip(n - bytesSkipped);
-            if (bytesSkipped < n) {
-                currentSparseInputStreamIndex++;
+            if (skipped != padding) {
+                throw new EOFException(String.format("Truncated TAR archive: Failed to skip record padding for entry '%s'", currEntry.getName()));
             }
         }
-        return bytesSkipped;
     }
 
     /**

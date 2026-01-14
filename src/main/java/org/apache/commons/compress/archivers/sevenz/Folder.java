@@ -22,6 +22,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedList;
 
+import org.apache.commons.compress.archivers.ArchiveException;
+import org.apache.commons.lang3.ArrayUtils;
+
 /**
  * The unit of solid compression.
  */
@@ -34,13 +37,23 @@ final class Folder {
 
     /**
      * Total number of input streams across all coders. This field is currently unused but technically part of the 7z API.
+     *
+     * <p>Currently limited to {@code MAX_CODER_STREAMS_PER_FOLDER}</p>
      */
-    long totalInputStreams;
+    int totalInputStreams;
 
-    /** Total number of output streams across all coders. */
-    long totalOutputStreams;
+    /**
+     * Total number of output streams across all coders.
+     *
+     * <p>Currently limited to {@code MAX_CODER_STREAMS_PER_FOLDER}</p>
+     */
+    int totalOutputStreams;
 
-    /** Mapping between input and output streams. */
+    /**
+     * Mapping between input and output streams.
+     *
+     * <p>Its size is equal to {@code totalOutputStreams - 1}</p>
+     */
     BindPair[] bindPairs;
 
     /** Indices of input streams, one per input stream not listed in bindPairs. */
@@ -60,7 +73,7 @@ final class Folder {
      */
     int numUnpackSubStreams;
 
-    int findBindPairForInStream(final int index) {
+    int findBindPairForInStream(final long index) {
         if (bindPairs != null) {
             for (int i = 0; i < bindPairs.length; i++) {
                 if (bindPairs[i].inIndex == index) {
@@ -71,7 +84,7 @@ final class Folder {
         return -1;
     }
 
-    int findBindPairForOutStream(final int index) {
+    int findBindPairForOutStream(final long index) {
         if (bindPairs != null) {
             for (int i = 0; i < bindPairs.length; i++) {
                 if (bindPairs[i].outIndex == index) {
@@ -90,29 +103,30 @@ final class Folder {
      * </p>
      */
     Iterable<Coder> getOrderedCoders() throws IOException {
-        if (packedStreams == null || coders == null || packedStreams.length == 0 || coders.length == 0) {
+        if (ArrayUtils.isEmpty(packedStreams) || ArrayUtils.isEmpty(coders)) {
             return Collections.emptyList();
         }
         final LinkedList<Coder> list = new LinkedList<>();
-        int current = (int) packedStreams[0]; // more that 2^31 coders?
+        long current = packedStreams[0]; // more that size int coders?
         while (current >= 0 && current < coders.length) {
-            if (list.contains(coders[current])) {
-                throw new IOException("folder uses the same coder more than once in coder chain");
+            final Coder curCoder = coders[ArchiveException.toIntExact(current)];
+            if (list.contains(curCoder)) {
+                throw new ArchiveException("Folder uses the same coder more than once in coder chain");
             }
-            list.addLast(coders[current]);
+            list.addLast(curCoder);
             final int pair = findBindPairForOutStream(current);
-            current = pair != -1 ? (int) bindPairs[pair].inIndex : -1;
+            current = pair != -1 ? bindPairs[pair].inIndex : -1;
         }
         return list;
     }
 
-    long getUnpackSize() {
+    long getUnpackSize() throws ArchiveException {
         if (totalOutputStreams == 0) {
             return 0;
         }
-        for (int i = (int) totalOutputStreams - 1; i >= 0; i--) {
+        for (long i = totalOutputStreams - 1; i >= 0; i--) {
             if (findBindPairForOutStream(i) < 0) {
-                return unpackSizes[i];
+                return unpackSizes[ArchiveException.toIntExact(i)];
             }
         }
         return 0;

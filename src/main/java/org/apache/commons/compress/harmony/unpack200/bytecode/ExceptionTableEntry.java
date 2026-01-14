@@ -24,6 +24,8 @@ import java.util.List;
 
 /**
  * An entry in an exception table.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class ExceptionTableEntry {
 
@@ -38,10 +40,11 @@ public class ExceptionTableEntry {
     private int catchTypeIndex;
 
     /**
-     * Constructs a new ExceptionTableEntry. Exception tables are of two kinds: either a normal one (with a Throwable as the catchType) or a finally clause
-     * (which has no catchType). In the class file, the finally clause is represented as catchType == 0.
-     *
-     * To create a finally clause with this method, pass in null for the catchType.
+     * Constructs a new ExceptionTableEntry. Exception tables are of two kinds: either a normal one (with a Throwable as the catchType) or a
+     * {@code finally} clause (which has no catchType). In the class file, the {@code finally} clause is represented as catchType == 0.
+     * <p>
+     * To create a {@code finally} clause with this method, pass in null for the catchType.
+     * </p>
      *
      * @param startPC   int
      * @param endPC     int
@@ -55,10 +58,20 @@ public class ExceptionTableEntry {
         this.catchType = catchType;
     }
 
+    /**
+     * Gets the catch type.
+     *
+     * @return the catch type.
+     */
     public CPClass getCatchType() {
         return catchType;
     }
 
+    /**
+     * Renumbers the program counter values.
+     *
+     * @param byteCodeOffsets the byte code offsets.
+     */
     public void renumber(final List<Integer> byteCodeOffsets) {
         startPcRenumbered = byteCodeOffsets.get(startPC).intValue();
         final int endPcIndex = startPC + endPC;
@@ -67,6 +80,11 @@ public class ExceptionTableEntry {
         handlerPcRenumbered = byteCodeOffsets.get(handlerPcIndex).intValue();
     }
 
+    /**
+     * Resolves the catch type in the constant pool.
+     *
+     * @param pool the constant pool.
+     */
     public void resolve(final ClassConstantPool pool) {
         if (catchType == null) {
             // If the catch type is a finally clause
@@ -78,6 +96,12 @@ public class ExceptionTableEntry {
         catchTypeIndex = pool.indexOf(catchType);
     }
 
+    /**
+     * Writes this exception table entry to the output stream.
+     *
+     * @param dos the data output stream.
+     * @throws IOException if an I/O error occurs.
+     */
     public void write(final DataOutputStream dos) throws IOException {
         dos.writeShort(startPcRenumbered);
         dos.writeShort(endPcRenumbered);

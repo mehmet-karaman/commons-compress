@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
@@ -33,7 +32,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public class CpioArchiveTest {
+class CpioArchiveTest {
 
     public static Stream<Arguments> factory() {
         return Stream.of(Arguments.of(CpioConstants.FORMAT_NEW), Arguments.of(CpioConstants.FORMAT_NEW_CRC), Arguments.of(CpioConstants.FORMAT_OLD_ASCII),
@@ -41,7 +40,7 @@ public class CpioArchiveTest {
     }
 
     @Test
-    public void utf18RoundtripTestCtor2() throws Exception {
+    void utf18RoundtripTestCtor2() throws Exception {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             try (CpioArchiveOutputStream os = new CpioArchiveOutputStream(baos, StandardCharsets.UTF_8.name())) {
                 final CpioArchiveEntry entry = new CpioArchiveEntry("Test.txt", 4);
@@ -50,8 +49,10 @@ public class CpioArchiveTest {
                 os.closeArchiveEntry();
             }
             baos.close();
-            try (ByteArrayInputStream bin = new ByteArrayInputStream(baos.toByteArray());
-                    CpioArchiveInputStream in = new CpioArchiveInputStream(bin, StandardCharsets.UTF_8.name())) {
+            try (CpioArchiveInputStream in = CpioArchiveInputStream.builder()
+                    .setByteArray(baos.toByteArray())
+                    .setCharset(StandardCharsets.UTF_8)
+                    .get()) {
                 final CpioArchiveEntry entry = in.getNextEntry();
                 assertNotNull(entry);
                 assertEquals("Test.txt", entry.getName());
@@ -74,8 +75,9 @@ public class CpioArchiveTest {
                 os.closeArchiveEntry();
             }
             baos.close();
-            try (ByteArrayInputStream bin = new ByteArrayInputStream(baos.toByteArray());
-                    CpioArchiveInputStream in = new CpioArchiveInputStream(bin)) {
+            try (CpioArchiveInputStream in = CpioArchiveInputStream.builder()
+                    .setByteArray(baos.toByteArray())
+                    .get()) {
                 final CpioArchiveEntry entry = in.getNextEntry();
                 assertNotNull(entry);
                 assertEquals("T%U00E4st.txt", entry.getName());
@@ -98,8 +100,10 @@ public class CpioArchiveTest {
                 os.closeArchiveEntry();
             }
             baos.close();
-            try (ByteArrayInputStream bin = new ByteArrayInputStream(baos.toByteArray());
-                    CpioArchiveInputStream in = new CpioArchiveInputStream(bin, StandardCharsets.UTF_16LE.name())) {
+            try (CpioArchiveInputStream in = CpioArchiveInputStream.builder()
+                    .setByteArray(baos.toByteArray())
+                    .setCharset(StandardCharsets.UTF_16LE)
+                    .get()) {
                 final CpioArchiveEntry entry = in.getNextEntry();
                 assertNotNull(entry);
                 assertEquals("T\u00e4st.txt", entry.getName());

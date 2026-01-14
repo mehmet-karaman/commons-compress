@@ -18,7 +18,6 @@
  */
 package org.apache.commons.compress.archivers;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -114,8 +113,8 @@ public final class ZipTest extends AbstractTest {
 
                 try (InputStream actualIs = actual.getInputStream(actualElement);
                         InputStream expectedIs = expected.getInputStream(expectedElement)) {
-                    org.apache.commons.compress.utils.IOUtils.readFully(expectedIs, expectedBuf);
-                    org.apache.commons.compress.utils.IOUtils.readFully(actualIs, actualBuf);
+                    IOUtils.read(expectedIs, expectedBuf);
+                    IOUtils.read(actualIs, actualBuf);
                 }
                 assertArrayEquals(expectedBuf, actualBuf); // Buffers are larger than payload. don't care
             }
@@ -217,7 +216,7 @@ public final class ZipTest extends AbstractTest {
      * Tests split archive with 32-bit limit, both STORED and DEFLATED.
      */
     @Test
-    public void testBuildArtificialSplitZip32Test() throws IOException {
+    void testBuildArtificialSplitZip32Test() throws IOException {
         final File outputZipFile = newTempFile("artificialSplitZip.zip");
         final long splitSize = 64 * 1024L; /* 64 KB */
         try (ZipArchiveOutputStream outputStream = new ZipArchiveOutputStream(outputZipFile, splitSize)) {
@@ -248,7 +247,7 @@ public final class ZipTest extends AbstractTest {
      * Tests split archive with 64-bit limit, both STORED and DEFLATED.
      */
     @Test
-    public void testBuildArtificialSplitZip64Test() throws IOException {
+    void testBuildArtificialSplitZip64Test() throws IOException {
         final File outputZipFile = newTempFile("artificialSplitZip.zip");
         final long splitSize = 64 * 1024L; /* 64 KB */
         final byte[] data = createArtificialData(128 * 1024);
@@ -275,7 +274,7 @@ public final class ZipTest extends AbstractTest {
      * Tests split archive with 32-bit limit, with end of central directory skipping lack of space in segment.
      */
     @Test
-    public void testBuildSplitZip32_endOfCentralDirectorySkipBoundary() throws IOException {
+    void testBuildSplitZip32_endOfCentralDirectorySkipBoundary() throws IOException {
         final File outputZipFile = newTempFile("artificialSplitZip.zip");
         final long splitSize = 64 * 1024L; /* 64 KB */
         // 4 is PK signature, 36 is size of header + local file header,
@@ -300,7 +299,7 @@ public final class ZipTest extends AbstractTest {
      * Tests split archive with 32-bit limit, with file local headers crossing segment boundaries.
      */
     @Test
-    public void testBuildSplitZip32_metaCrossBoundary() throws IOException {
+    void testBuildSplitZip32_metaCrossBoundary() throws IOException {
         final File outputZipFile = newTempFile("artificialSplitZip.zip");
         final long splitSize = 64 * 1024L; /* 64 KB */
         // 4 is PK signature, 36 is size of header + local file header,
@@ -347,13 +346,16 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testBuildSplitZipTest() throws IOException {
+    void testBuildSplitZipTest() throws IOException {
         final File directoryToZip = getFilesToZip();
         createTestSplitZipSegments();
         final File lastFile = newTempFile("splitZip.zip");
         try (SeekableByteChannel channel = ZipSplitReadOnlySeekableByteChannel.buildFromLastSplitSegment(lastFile);
                 InputStream inputStream = Channels.newInputStream(channel);
-                ZipArchiveInputStream splitInputStream = new ZipArchiveInputStream(inputStream, UTF_8.toString(), true, false, true)) {
+                ZipArchiveInputStream splitInputStream = ZipArchiveInputStream.builder()
+                        .setInputStream(inputStream)
+                        .setSkipSplitSignature(true)
+                        .get()) {
 
             ArchiveEntry entry;
             final int filesNum = countNonDirectories(directoryToZip);
@@ -372,7 +374,7 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testBuildSplitZipWithSegmentAlreadyExistThrowsException() throws IOException {
+    void testBuildSplitZipWithSegmentAlreadyExistThrowsException() throws IOException {
         final File directoryToZip = getFilesToZip();
         final File outputZipFile = newTempFile("splitZip.zip");
         final long splitSize = 100 * 1024L; /* 100 KB */
@@ -380,7 +382,7 @@ public final class ZipTest extends AbstractTest {
             // create a file that has the same name of one of the created split segments
             final File sameNameFile = newTempFile("splitZip.z01");
             sameNameFile.createNewFile();
-            assertThrows(IOException.class, () -> addFilesToZip(zipArchiveOutputStream, directoryToZip));
+            assertThrows(ArchiveException.class, () -> addFilesToZip(zipArchiveOutputStream, directoryToZip));
         } catch (final Exception e) {
             // Ignore:
             // java.io.IOException: This archive contains unclosed entries.
@@ -391,7 +393,7 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testBuildSplitZipWithTooLargeSizeThrowsException() throws IOException {
+    void testBuildSplitZipWithTooLargeSizeThrowsException() throws IOException {
         final Path file = Files.createTempFile("temp", "zip");
         try {
             assertThrows(IllegalArgumentException.class, () -> new ZipArchiveOutputStream(file, 4294967295L + 1));
@@ -401,13 +403,13 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testBuildSplitZipWithTooSmallSizeThrowsException() throws IOException {
+    void testBuildSplitZipWithTooSmallSizeThrowsException() throws IOException {
         createTempFile("temp", "zip").toPath();
         assertThrows(IllegalArgumentException.class, () -> new ZipArchiveOutputStream(createTempFile("temp", "zip"), 64 * 1024 - 1));
     }
 
     @Test
-    public void testCopyRawEntriesFromFile() throws IOException {
+    void testCopyRawEntriesFromFile() throws IOException {
         final File reference = createReferenceFile(Zip64Mode.Never, "expected.");
         final File file1 = createTempFile("src1.", ".zip");
         try (ZipArchiveOutputStream zos = new ZipArchiveOutputStream(file1)) {
@@ -434,7 +436,7 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testCopyRawZip64EntryFromFile() throws IOException {
+    void testCopyRawZip64EntryFromFile() throws IOException {
         final File reference = createTempFile("z64reference.", ".zip");
         try (ZipArchiveOutputStream zos1 = new ZipArchiveOutputStream(reference)) {
             zos1.setUseZip64(Zip64Mode.Always);
@@ -456,7 +458,7 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testDirectoryEntryFromFile() throws Exception {
+    void testDirectoryEntryFromFile() throws Exception {
         final File tmp = getTempDirFile();
         final File archive = createTempFile("test.", ".zip");
         final long beforeArchiveWrite;
@@ -478,7 +480,7 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testExplicitDirectoryEntry() throws Exception {
+    void testExplicitDirectoryEntry() throws Exception {
         final File archive = createTempFile("test.", ".zip");
         final long beforeArchiveWrite;
         try (ZipArchiveOutputStream zos = new ZipArchiveOutputStream(archive)) {
@@ -499,7 +501,7 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testExplicitFileEntry() throws Exception {
+    void testExplicitFileEntry() throws Exception {
         final File file = createTempFile();
         final File archive = createTempFile("test.", ".zip");
         try (ZipArchiveOutputStream outputStream = new ZipArchiveOutputStream(archive)) {
@@ -521,7 +523,7 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testFileEntryFromFile() throws Exception {
+    void testFileEntryFromFile() throws Exception {
         final File file = createTempFile();
         final File archive = createTempFile("test.", ".zip");
         try (ZipArchiveOutputStream outputStream = new ZipArchiveOutputStream(archive)) {
@@ -566,28 +568,28 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testInputStreamStatisticsForBzip2Entry() throws IOException, ArchiveException {
+    void testInputStreamStatisticsForBzip2Entry() throws IOException, ArchiveException {
         final Map<String, List<Long>> expected = new HashMap<>();
         expected.put("lots-of-as", Arrays.asList(42L, 39L));
         testInputStreamStatistics("bzip2-zip.zip", expected);
     }
 
     @Test
-    public void testInputStreamStatisticsForDeflate64Entry() throws IOException, ArchiveException {
+    void testInputStreamStatisticsForDeflate64Entry() throws IOException, ArchiveException {
         final Map<String, List<Long>> expected = new HashMap<>();
         expected.put("input2", Arrays.asList(3072L, 2111L));
         testInputStreamStatistics("COMPRESS-380/COMPRESS-380.zip", expected);
     }
 
     @Test
-    public void testInputStreamStatisticsForImplodedEntry() throws IOException, ArchiveException {
+    void testInputStreamStatisticsForImplodedEntry() throws IOException, ArchiveException {
         final Map<String, List<Long>> expected = new HashMap<>();
         expected.put("LICENSE.TXT", Arrays.asList(11560L, 4131L));
         testInputStreamStatistics("imploding-8Kdict-3trees.zip", expected);
     }
 
     @Test
-    public void testInputStreamStatisticsForShrunkEntry() throws IOException, ArchiveException {
+    void testInputStreamStatisticsForShrunkEntry() throws IOException, ArchiveException {
         final Map<String, List<Long>> expected = new HashMap<>();
         expected.put("TEST1.XML", Arrays.asList(76L, 66L));
         expected.put("TEST2.XML", Arrays.asList(81L, 76L));
@@ -595,14 +597,14 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testInputStreamStatisticsForStoredEntry() throws IOException, ArchiveException {
+    void testInputStreamStatisticsForStoredEntry() throws IOException, ArchiveException {
         final Map<String, List<Long>> expected = new HashMap<>();
         expected.put("test.txt", Arrays.asList(5L, 5L));
         testInputStreamStatistics("COMPRESS-264.zip", expected);
     }
 
     @Test
-    public void testInputStreamStatisticsOfZipBombExcel() throws IOException, ArchiveException {
+    void testInputStreamStatisticsOfZipBombExcel() throws IOException, ArchiveException {
         final Map<String, List<Long>> expected = new HashMap<>();
         expected.put("[Content_Types].xml", Arrays.asList(8390036L, 8600L));
         expected.put("xl/worksheets/sheet1.xml", Arrays.asList(1348L, 508L));
@@ -617,7 +619,7 @@ public final class ZipTest extends AbstractTest {
      * @throws Exception
      */
     @Test
-    public void testListAllFilesWithNestedArchive() throws Exception {
+    void testListAllFilesWithNestedArchive() throws Exception {
         final File input = getFile("OSX_ArchiveWithNestedArchive.zip");
         final List<String> results = new ArrayList<>();
         final List<ZipException> expectedExceptions = new ArrayList<>();
@@ -652,8 +654,8 @@ public final class ZipTest extends AbstractTest {
      * @see <a href="https://issues.apache.org/jira/browse/COMPRESS-93">COMPRESS-93</a>
      */
     @Test
-    public void testSkipEntryWithUnsupportedCompressionMethod() throws IOException {
-        try (ZipArchiveInputStream zip = new ZipArchiveInputStream(newInputStream("moby.zip"))) {
+    void testSkipEntryWithUnsupportedCompressionMethod() throws IOException {
+        try (ZipArchiveInputStream zip = ZipArchiveInputStream.builder().setURI(getURI("moby.zip")).get()) {
             final ZipArchiveEntry entry = zip.getNextZipEntry();
             assertEquals(ZipMethod.TOKENIZATION.getCode(), entry.getMethod(), "method");
             assertEquals("README", entry.getName());
@@ -666,13 +668,13 @@ public final class ZipTest extends AbstractTest {
      * Test case for <a href="https://issues.apache.org/jira/browse/COMPRESS-208">COMPRESS-208</a>.
      */
     @Test
-    public void testSkipsPK00Prefix() throws Exception {
-        final File input = getFile("COMPRESS-208.zip");
+    void testSkipsPK00Prefix() throws Exception {
         final ArrayList<String> al = new ArrayList<>();
         al.add("test1.xml");
         al.add("test2.xml");
-        try (InputStream fis = Files.newInputStream(input.toPath());
-                ZipArchiveInputStream inputStream = new ZipArchiveInputStream(fis)) {
+        try (ZipArchiveInputStream inputStream = ZipArchiveInputStream.builder()
+                .setURI(getURI("COMPRESS-208.zip"))
+                .get()) {
             checkArchiveContent(inputStream, al);
         }
     }
@@ -681,7 +683,7 @@ public final class ZipTest extends AbstractTest {
      * Test case for <a href="https://issues.apache.org/jira/browse/COMPRESS-93">COMPRESS-93</a>.
      */
     @Test
-    public void testTokenizationCompressionMethod() throws IOException {
+    void testTokenizationCompressionMethod() throws IOException {
         try (ZipFile moby = ZipFile.builder().setFile(getFile("moby.zip")).get()) {
             final ZipArchiveEntry entry = moby.getEntry("README");
             assertEquals(ZipMethod.TOKENIZATION.getCode(), entry.getMethod(), "method");
@@ -690,7 +692,7 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testUnixModeInAddRaw() throws IOException {
+    void testUnixModeInAddRaw() throws IOException {
         final File file1 = createTempFile("unixModeBits.", ".zip");
         try (ZipArchiveOutputStream zos = new ZipArchiveOutputStream(file1)) {
             final ZipArchiveEntry archiveEntry = new ZipArchiveEntry("fred");
@@ -707,7 +709,7 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testUnsupportedCompressionMethodInAddRaw() throws IOException {
+    void testUnsupportedCompressionMethodInAddRaw() throws IOException {
         final File file1 = createTempFile("unsupportedCompressionMethod.", ".zip");
         try (ZipArchiveOutputStream zos = new ZipArchiveOutputStream(file1)) {
             final ZipArchiveEntry archiveEntry = new ZipArchiveEntry("fred");
@@ -725,7 +727,7 @@ public final class ZipTest extends AbstractTest {
      * @throws Exception
      */
     @Test
-    public void testZipArchiveCreation() throws Exception {
+    void testZipArchiveCreation() throws Exception {
         // Archive
         final File output = newTempFile("bla.zip");
         final File file1 = getFile("test1.xml");
@@ -767,7 +769,7 @@ public final class ZipTest extends AbstractTest {
      * @throws Exception
      */
     @Test
-    public void testZipArchiveCreationInMemory() throws Exception {
+    void testZipArchiveCreationInMemory() throws Exception {
         final byte[] file1Contents = readAllBytes("test1.xml");
         final byte[] file2Contents = readAllBytes("test2.xml");
         final List<byte[]> results = new ArrayList<>();
@@ -796,7 +798,7 @@ public final class ZipTest extends AbstractTest {
     }
 
     @Test
-    public void testZipArchiveEntryNewFromPath() throws Exception {
+    void testZipArchiveEntryNewFromPath() throws Exception {
         final Path archivePath;
         final File tmpFile = createTempFile();
         final Path tmpFilePath = tmpFile.toPath();
@@ -824,7 +826,7 @@ public final class ZipTest extends AbstractTest {
      * @throws Exception
      */
     @Test
-    public void testZipUnarchive() throws Exception {
+    void testZipUnarchive() throws Exception {
         final File input = getFile("bla.zip");
         try (InputStream is = Files.newInputStream(input.toPath());
                 ArchiveInputStream<ZipArchiveEntry> in = ArchiveStreamFactory.DEFAULT.createArchiveInputStream("zip", is)) {

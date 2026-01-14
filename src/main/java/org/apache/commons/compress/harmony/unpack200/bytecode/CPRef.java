@@ -24,23 +24,34 @@ import java.util.Objects;
 
 /**
  * Abstract superclass for reference constant pool entries, such as a method or field reference.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public abstract class CPRef extends ConstantPoolEntry {
 
+    /**
+     * The class name.
+     */
     CPClass className;
     transient int classNameIndex;
 
+    /**
+     * The name and type descriptor.
+     */
     protected CPNameAndType nameAndType;
     transient int nameAndTypeIndex;
 
+    /**
+     * Cached toString value.
+     */
     protected String cachedToString;
 
     /**
      * Constructs a new CPRef.
      *
-     * @param type        TODO
-     * @param className   TODO
-     * @param descriptor  TODO
+     * @param type        the constant pool entry type.
+     * @param className   the class name.
+     * @param descriptor  the name and type descriptor.
      * @param globalIndex index in CpBands
      * @throws NullPointerException if descriptor or className is null
      */

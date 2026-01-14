@@ -22,7 +22,7 @@ package org.apache.commons.compress.archivers.zip;
  * PKCS#7 Encryption Recipient Certificate List (0x0019).
  *
  * <p>
- * This field MAY contain information about each of the certificates used in encryption processing and it can be used to identify who is allowed to decrypt
+ * This field MAY contain information about each of the certificates used in encryption processing, and it can be used to identify who is allowed to decrypt
  * encrypted files. This field should only appear in the archive extra data record. This field is not required and serves only to aid archive modifications by
  * preserving public encryption key data. Individual security requirements may dictate that this data be omitted to deter information exposure.
  * </p>
@@ -52,6 +52,9 @@ public class X0019_EncryptionRecipientCertificateList extends PKWareExtraHeader 
 
     static final ZipShort HEADER_ID = new ZipShort(0x0019);
 
+    /**
+     * Constructs a new instance.
+     */
     public X0019_EncryptionRecipientCertificateList() {
         super(HEADER_ID);
     }

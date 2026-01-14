@@ -25,6 +25,8 @@ import java.util.List;
 
 /**
  * Parameter annotations class file attribute, either a RuntimeVisibleParameterAnnotations attribute or a RuntimeInvisibleParameterAnnotations attribute.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class RuntimeVisibleorInvisibleParameterAnnotationsAttribute extends AnnotationsAttribute {
 
@@ -34,13 +36,21 @@ public class RuntimeVisibleorInvisibleParameterAnnotationsAttribute extends Anno
     public static class ParameterAnnotation {
 
         private final Annotation[] annotations;
-        private final int numAnnotations;
 
+        /**
+         * Constructs a new instance.
+         *
+         * @param annotations Annotation.
+         */
         public ParameterAnnotation(final Annotation[] annotations) {
-            this.numAnnotations = annotations.length;
             this.annotations = annotations;
         }
 
+        /**
+         * Gets all annotation class file entries.
+         *
+         * @return all annotation class file entries.
+         */
         public List<Object> getClassFileEntries() {
             final List<Object> nested = new ArrayList<>();
             for (final Annotation annotation : annotations) {
@@ -49,6 +59,11 @@ public class RuntimeVisibleorInvisibleParameterAnnotationsAttribute extends Anno
             return nested;
         }
 
+        /**
+         * Gets the cumulative length of all annotations.
+         *
+         * @return the cumulative length of all annotations.
+         */
         public int getLength() {
             int length = 2;
             for (final Annotation annotation : annotations) {
@@ -57,14 +72,25 @@ public class RuntimeVisibleorInvisibleParameterAnnotationsAttribute extends Anno
             return length;
         }
 
+        /**
+         * Resolves all annotations in this instance against the given pool.
+         *
+         * @param pool A class constant pool.
+         */
         public void resolve(final ClassConstantPool pool) {
             for (final Annotation annotation : annotations) {
                 annotation.resolve(pool);
             }
         }
 
+        /**
+         * Writes this body to the given output stream.
+         *
+         * @param dos the output stream.
+         * @throws IOException if an I/O error occurs.
+         */
         public void writeBody(final DataOutputStream dos) throws IOException {
-            dos.writeShort(numAnnotations);
+            dos.writeShort(annotations.length);
             for (final Annotation annotation : annotations) {
                 annotation.writeBody(dos);
             }
@@ -72,21 +98,24 @@ public class RuntimeVisibleorInvisibleParameterAnnotationsAttribute extends Anno
 
     }
 
-    private final int numParameters;
-
     private final ParameterAnnotation[] parameterAnnotations;
 
+    /**
+     * Constructs a new instance for an attribute name.
+     *
+     * @param name an attribute name.
+     * @param parameterAnnotations Annotations.
+     */
     public RuntimeVisibleorInvisibleParameterAnnotationsAttribute(final CPUTF8 name, final ParameterAnnotation[] parameterAnnotations) {
         super(name);
-        this.numParameters = parameterAnnotations.length;
         this.parameterAnnotations = parameterAnnotations;
     }
 
     @Override
     protected int getLength() {
         int length = 1;
-        for (int i = 0; i < numParameters; i++) {
-            length += parameterAnnotations[i].getLength();
+        for (final ParameterAnnotation parameterAnnotation : parameterAnnotations) {
+            length += parameterAnnotation.getLength();
         }
         return length;
     }
@@ -111,14 +140,14 @@ public class RuntimeVisibleorInvisibleParameterAnnotationsAttribute extends Anno
 
     @Override
     public String toString() {
-        return attributeName.underlyingString() + ": " + numParameters + " parameter annotations";
+        return attributeName.underlyingString() + ": " + parameterAnnotations.length + " parameter annotations";
     }
 
     @Override
     protected void writeBody(final DataOutputStream dos) throws IOException {
-        dos.writeByte(numParameters);
-        for (int i = 0; i < numParameters; i++) {
-            parameterAnnotations[i].writeBody(dos);
+        dos.writeByte(parameterAnnotations.length);
+        for (final ParameterAnnotation parameterAnnotation : parameterAnnotations) {
+            parameterAnnotation.writeBody(dos);
         }
     }
 

@@ -16,10 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.commons.compress.archivers.sevenz;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -27,55 +29,42 @@ import org.junit.jupiter.api.Test;
  *
  * @see Folder
  */
-public class FolderTest {
+class SevenZFolderTest {
 
     @Test
-    public void testFindBindPairForInStream() {
-
+    void testFindBindPairForInStream() {
         final Folder folder = new Folder();
         final BindPair[] bindPairArray = new BindPair[1];
         final BindPair bindPair = new BindPair(0, 0);
         bindPairArray[0] = bindPair;
         folder.bindPairs = bindPairArray;
-
         assertEquals(0, folder.findBindPairForInStream(0));
-
     }
 
     @Test
-    public void testGetUnpackSizeForCoderOne() {
-
+    void testGetUnpackSizeForCoderOne() {
         final Folder folder = new Folder();
         final Coder[] coderArray = new Coder[5];
         final Coder coder = new Coder(null, 0, 0, null);
         folder.coders = coderArray;
-
         assertEquals(0L, folder.getUnpackSizeForCoder(coder));
-
     }
 
     @Test
-    public void testGetUnpackSizeOne() {
-
+    void testGetUnpackSizeOne() throws ArchiveException {
         final Folder folder = new Folder();
-        folder.totalOutputStreams = 266L;
+        folder.totalOutputStreams = 266;
         final BindPair[] bindPairArray = new BindPair[1];
         final BindPair bindPair = new BindPair(0, 0);
         bindPairArray[0] = bindPair;
         folder.bindPairs = bindPairArray;
-        folder.totalOutputStreams = 1L;
-
+        folder.totalOutputStreams = 1;
         assertEquals(0L, folder.getUnpackSize());
-
     }
 
     @Test
-    public void testGetUnpackSizeTwo() {
-
+    void testGetUnpackSizeTwo() throws ArchiveException {
         final Folder folder = new Folder();
-
         assertEquals(0L, folder.getUnpackSize());
-
     }
-
 }

@@ -26,6 +26,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.zip.Deflater;
+import java.util.zip.ZipEntry;
 
 import org.apache.commons.compress.AbstractTempDirTest;
 import org.junit.jupiter.api.Test;
@@ -33,10 +35,10 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests {@link ZipArchiveOutputStream}.
  */
-public class ZipArchiveOutputStreamTest extends AbstractTempDirTest {
+class ZipArchiveOutputStreamTest extends AbstractTempDirTest {
 
     @Test
-    public void testFileBasics() throws IOException {
+    void testFileBasics() throws IOException {
         final ZipArchiveOutputStream ref;
         try (ZipArchiveOutputStream outputStream = new ZipArchiveOutputStream(createTempFile())) {
             ref = outputStream;
@@ -46,14 +48,28 @@ public class ZipArchiveOutputStreamTest extends AbstractTempDirTest {
     }
 
     @Test
-    public void testOutputStreamBasics() throws IOException {
+    void testOptionDefaults() throws IOException {
+        final ZipArchiveOutputStream ref;
+        try (ZipArchiveOutputStream outputStream = new ZipArchiveOutputStream(createTempFile())) {
+            ref = outputStream;
+            assertTrue(outputStream.isSeekable());
+            outputStream.setComment("");
+            outputStream.setLevel(Deflater.DEFAULT_COMPRESSION);
+            outputStream.setMethod(ZipEntry.DEFLATED);
+            outputStream.setFallbackToUTF8(false);
+        }
+        assertTrue(ref.isClosed());
+    }
+
+    @Test
+    void testOutputStreamBasics() throws IOException {
         try (ZipArchiveOutputStream outputStream = new ZipArchiveOutputStream(new ByteArrayOutputStream())) {
             assertFalse(outputStream.isSeekable());
         }
     }
 
     @Test
-    public void testSetEncoding() throws IOException {
+    void testSetEncoding() throws IOException {
         try (ZipArchiveOutputStream outputStream = new ZipArchiveOutputStream(createTempFile())) {
             outputStream.setEncoding(StandardCharsets.UTF_8.name());
             assertEquals(StandardCharsets.UTF_8.name(), outputStream.getEncoding());

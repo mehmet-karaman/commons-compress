@@ -28,6 +28,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
 
 /**
  * Utility class for handling DOS and Java time conversions.
@@ -85,8 +86,8 @@ public abstract class ZipUtil {
      * Approximately 128 years, in milliseconds (ignoring leap years, etc.).
      *
      * <p>
-     * This establish an approximate high-bound value for DOS times in milliseconds since epoch, used to enable an efficient but sufficient bounds check to
-     * avoid generating extended last modified time entries.
+     * This establishes an approximate high-bound value for DOS times in milliseconds since epoch, used to enable an efficient but sufficient
+     * bounds check to avoid generating extended last modified time entries.
      * </p>
      * <p>
      * Calculating the exact number is locale dependent, would require loading TimeZone data eagerly, and would make little practical sense. Since DOS times
@@ -170,8 +171,8 @@ public abstract class ZipUtil {
     /**
      * Converts DOS time to Java time (number of milliseconds since epoch).
      *
-     * @param dosTime time to convert
-     * @return converted time
+     * @param dosTime time to convert.
+     * @return converted time.
      */
     public static long dosToJavaTime(final long dosTime) {
         return dosToJavaDate(dosTime).getTime();
@@ -195,15 +196,15 @@ public abstract class ZipUtil {
      * If the field is null or the CRCs don't match, return null instead.
      * </p>
      */
-    private static String getUnicodeStringIfOriginalMatches(final AbstractUnicodeExtraField f, final byte[] orig) {
-        if (f != null) {
+    private static String getUnicodeStringIfOriginalMatches(final AbstractUnicodeExtraField field, final byte[] originalNameBytes) {
+        if (field != null) {
             final CRC32 crc32 = new CRC32();
-            crc32.update(orig);
+            crc32.update(originalNameBytes);
             final long origCRC32 = crc32.getValue();
 
-            if (origCRC32 == f.getNameCRC32()) {
+            if (origCRC32 == field.getNameCRC32()) {
                 try {
-                    return ZipEncodingHelper.ZIP_ENCODING_UTF_8.decode(f.getUnicodeName());
+                    return ZipEncodingHelper.ZIP_ENCODING_UTF_8.decode(field.getUnicodeName());
                 } catch (final IOException ignored) {
                     // UTF-8 unsupported? should be impossible the
                     // Unicode*ExtraField must contain some bad bytes
@@ -217,8 +218,8 @@ public abstract class ZipUtil {
     /**
      * Tests whether a given time (in milliseconds since Epoch) can be safely represented as DOS time
      *
-     * @param time time in milliseconds since epoch
-     * @return true if the time can be safely represented as DOS time, false otherwise
+     * @param time time in milliseconds since epoch.
+     * @return true if the time can be safely represented as DOS time, false otherwise.
      * @since 1.23
      */
     public static boolean isDosTime(final long time) {
@@ -260,6 +261,17 @@ public abstract class ZipUtil {
             l = adjustToLong((int) l);
         }
         return BigInteger.valueOf(l);
+    }
+
+    /**
+     * Constructs a new ZipException.
+     *
+     * @param message the detail message.
+     * @param cause   throwable The cause of this Throwable.
+     * @return a new ZipException.
+     */
+    static ZipException newZipException(final String message, final Throwable cause) {
+        return (ZipException) new ZipException(message).initCause(cause);
     }
 
     /**
@@ -306,8 +318,8 @@ public abstract class ZipUtil {
     /**
      * Converts a signed byte into an unsigned integer representation (for example, -1 becomes 255).
      *
-     * @param b byte to convert to int
-     * @return int representation of the provided byte
+     * @param b byte to convert to int.
+     * @return int representation of the provided byte.
      * @since 1.5
      * @deprecated Use {@link Byte#toUnsignedInt(byte)}.
      */
@@ -319,7 +331,7 @@ public abstract class ZipUtil {
     /**
      * Tests if this library supports the encryption used by the given entry.
      *
-     * @return true if the entry isn't encrypted at all
+     * @return true if the entry isn't encrypted at all.
      */
     private static boolean supportsEncryptionOf(final ZipArchiveEntry entry) {
         return !entry.getGeneralPurposeBit().usesEncryption();
@@ -328,21 +340,22 @@ public abstract class ZipUtil {
     /**
      * Tests if this library supports the compression method used by the given entry.
      *
-     * @return true if the compression method is supported
+     * @return true if the compression method is supported.
      */
     private static boolean supportsMethodOf(final ZipArchiveEntry entry) {
         final int method = entry.getMethod();
         return method == ZipEntry.STORED || method == ZipMethod.UNSHRINKING.getCode()
                 || method == ZipMethod.IMPLODING.getCode() || method == ZipEntry.DEFLATED
                 || method == ZipMethod.ENHANCED_DEFLATED.getCode() || method == ZipMethod.BZIP2.getCode()
-                || ZipMethod.isZstd(method);
+                || ZipMethod.isZstd(method)
+                || method == ZipMethod.XZ.getCode();
     }
 
     /**
      * Converts a Date object to a DOS date/time field.
      *
-     * @param time the {@code Date} to convert
-     * @return the date as a {@code ZipLong}
+     * @param time the {@code Date} to convert.
+     * @return the date as a {@code ZipLong}.
      */
     public static ZipLong toDosTime(final Date time) {
         return new ZipLong(toDosTime(time.getTime()));
@@ -355,8 +368,8 @@ public abstract class ZipUtil {
      * Stolen from InfoZip's {@code fileio.c}
      * </p>
      *
-     * @param t number of milliseconds since the epoch
-     * @return the date as a byte array
+     * @param t number of milliseconds since the epoch.
+     * @return the date as a byte array.
      */
     public static byte[] toDosTime(final long t) {
         final byte[] result = new byte[4];
@@ -371,9 +384,9 @@ public abstract class ZipUtil {
      * Stolen from InfoZip's {@code fileio.c}
      * </p>
      *
-     * @param t      number of milliseconds since the epoch
-     * @param buf    the output buffer
-     * @param offset The offset within the output buffer of the first byte to be written. must be non-negative and no larger than {@code buf.length-4}
+     * @param t      number of milliseconds since the epoch.
+     * @param buf    the output buffer.
+     * @param offset The offset within the output buffer of the first byte to be written. must be non-negative and no larger than {@code buf.length-4}.
      */
     public static void toDosTime(final long t, final byte[] buf, final int offset) {
         ZipLong.putLong(javaToDosTime(t), buf, offset);
@@ -396,8 +409,8 @@ public abstract class ZipUtil {
     /**
      * Converts an unsigned integer to a signed byte (for example, 255 becomes -1).
      *
-     * @param i integer to convert to byte
-     * @return byte representation of the provided int
+     * @param i integer to convert to byte.
+     * @return byte representation of the provided int.
      * @throws IllegalArgumentException if the provided integer is not inside the range [0,255].
      * @since 1.5
      */
@@ -409,5 +422,15 @@ public abstract class ZipUtil {
             return (byte) i;
         }
         return (byte) (i - 256);
+    }
+
+    /**
+     * Constructs a new instance.
+     *
+     * @deprecated Will be removed in 2.0.
+     */
+    @Deprecated
+    public ZipUtil() {
+        // Utility class
     }
 }

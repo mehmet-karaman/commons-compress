@@ -20,21 +20,33 @@ package org.apache.commons.compress.harmony.pack200;
 
 /**
  * Constant pool entry for a double.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPDouble extends CPConstant<CPDouble> {
 
-    private final double theDouble;
+    private final double value;
 
-    public CPDouble(final double theDouble) {
-        this.theDouble = theDouble;
+    /**
+     * Constructs a new instance.
+     *
+     * @param value The value.
+     */
+    public CPDouble(final double value) {
+        this.value = value;
     }
 
     @Override
     public int compareTo(final CPDouble obj) {
-        return Double.compare(theDouble, obj.theDouble);
+        return Double.compare(value, obj.value);
     }
 
+    /**
+     * Gets the double value.
+     *
+     * @return the double value.
+     */
     public double getDouble() {
-        return theDouble;
+        return value;
     }
 }

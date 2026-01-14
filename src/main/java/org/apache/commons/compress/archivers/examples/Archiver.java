@@ -42,7 +42,6 @@ import org.apache.commons.compress.archivers.ArchiveStreamFactory;
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry;
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
-import org.apache.commons.compress.utils.IOUtils;
 
 /**
  * Provides a high level API for creating archives.
@@ -61,7 +60,7 @@ public class Archiver {
         private ArchiverFileVisitor(final O target, final Path directory, final LinkOption... linkOptions) {
             this.outputStream = target;
             this.directory = directory;
-            this.linkOptions = linkOptions == null ? IOUtils.EMPTY_LINK_OPTIONS : linkOptions.clone();
+            this.linkOptions = linkOptions == null ? org.apache.commons.compress.utils.IOUtils.EMPTY_LINK_OPTIONS : linkOptions.clone();
         }
 
         @Override
@@ -97,11 +96,18 @@ public class Archiver {
     public static final EnumSet<FileVisitOption> EMPTY_FileVisitOption = EnumSet.noneOf(FileVisitOption.class);
 
     /**
+     * Constructs a new instance.
+     */
+    public Archiver() {
+        // empty
+    }
+
+    /**
      * Creates an archive {@code target} by recursively including all files and directories in {@code directory}.
      *
      * @param target    the stream to write the new archive to.
      * @param directory the directory that contains the files to archive.
-     * @throws IOException if an I/O error occurs
+     * @throws IOException if an I/O error occurs.
      */
     public void create(final ArchiveOutputStream<?> target, final File directory) throws IOException {
         create(target, directory.toPath(), EMPTY_FileVisitOption);
@@ -140,7 +146,7 @@ public class Archiver {
      *
      * @param target    the file to write the new archive to.
      * @param directory the directory that contains the files to archive.
-     * @throws IOException if an I/O error occurs
+     * @throws IOException if an I/O error occurs.
      */
     public void create(final SevenZOutputFile target, final File directory) throws IOException {
         create(target, directory.toPath());
@@ -151,7 +157,7 @@ public class Archiver {
      *
      * @param target    the file to write the new archive to.
      * @param directory the directory that contains the files to archive.
-     * @throws IOException if an I/O error occurs
+     * @throws IOException if an I/O error occurs.
      * @since 1.21
      */
     public void create(final SevenZOutputFile target, final Path directory) throws IOException {
@@ -186,8 +192,8 @@ public class Archiver {
      * @param format    the archive format. This uses the same format as accepted by {@link ArchiveStreamFactory}.
      * @param target    the file to write the new archive to.
      * @param directory the directory that contains the files to archive.
-     * @throws IOException      if an I/O error occurs
-     * @throws ArchiveException if the archive cannot be created for other reasons
+     * @throws IOException      if an I/O error occurs.
+     * @throws ArchiveException if the archive cannot be created for other reasons.
      */
     public void create(final String format, final File target, final File directory) throws IOException, ArchiveException {
         create(format, target.toPath(), directory.toPath());
@@ -205,8 +211,8 @@ public class Archiver {
      * @param format    the archive format. This uses the same format as accepted by {@link ArchiveStreamFactory}.
      * @param target    the stream to write the new archive to.
      * @param directory the directory that contains the files to archive.
-     * @throws IOException      if an I/O error occurs
-     * @throws ArchiveException if the archive cannot be created for other reasons
+     * @throws IOException      if an I/O error occurs.
+     * @throws ArchiveException if the archive cannot be created for other reasons.
      * @deprecated this method leaks resources
      */
     @Deprecated
@@ -227,9 +233,9 @@ public class Archiver {
      * @param format            the archive format. This uses the same format as accepted by {@link ArchiveStreamFactory}.
      * @param target            the stream to write the new archive to.
      * @param directory         the directory that contains the files to archive.
-     * @param closeableConsumer is informed about the stream wrapped around the passed in stream
-     * @throws IOException      if an I/O error occurs
-     * @throws ArchiveException if the archive cannot be created for other reasons
+     * @param closeableConsumer is informed about the stream wrapped around the passed in stream.
+     * @throws IOException      if an I/O error occurs.
+     * @throws ArchiveException if the archive cannot be created for other reasons.
      * @since 1.19
      */
     public void create(final String format, final OutputStream target, final File directory, final CloseableConsumer closeableConsumer)
@@ -247,8 +253,8 @@ public class Archiver {
      * @param format    the archive format. This uses the same format as accepted by {@link ArchiveStreamFactory}.
      * @param target    the file to write the new archive to.
      * @param directory the directory that contains the files to archive.
-     * @throws IOException      if an I/O error occurs
-     * @throws ArchiveException if the archive cannot be created for other reasons
+     * @throws IOException      if an I/O error occurs.
+     * @throws ArchiveException if the archive cannot be created for other reasons.
      * @since 1.21
      */
     public void create(final String format, final Path target, final Path directory) throws IOException, ArchiveException {
@@ -277,8 +283,8 @@ public class Archiver {
      * @param format    the archive format. This uses the same format as accepted by {@link ArchiveStreamFactory}.
      * @param target    the channel to write the new archive to.
      * @param directory the directory that contains the files to archive.
-     * @throws IOException      if an I/O error occurs
-     * @throws ArchiveException if the archive cannot be created for other reasons
+     * @throws IOException      if an I/O error occurs.
+     * @throws ArchiveException if the archive cannot be created for other reasons.
      * @deprecated this method leaks resources
      */
     @Deprecated
@@ -299,9 +305,9 @@ public class Archiver {
      * @param format            the archive format. This uses the same format as accepted by {@link ArchiveStreamFactory}.
      * @param target            the channel to write the new archive to.
      * @param directory         the directory that contains the files to archive.
-     * @param closeableConsumer is informed about the stream wrapped around the passed in stream
-     * @throws IOException      if an I/O error occurs
-     * @throws ArchiveException if the archive cannot be created for other reasons
+     * @param closeableConsumer is informed about the stream wrapped around the passed in stream.
+     * @throws IOException      if an I/O error occurs.
+     * @throws ArchiveException if the archive cannot be created for other reasons.
      * @since 1.19
      */
     public void create(final String format, final SeekableByteChannel target, final File directory, final CloseableConsumer closeableConsumer)
@@ -315,7 +321,7 @@ public class Archiver {
                 create(c.track(new SevenZOutputFile(target)), directory);
             } else {
                 // never reached as prefersSeekableByteChannel only returns true for ZIP and 7z
-                throw new ArchiveException("Don't know how to handle format " + format);
+                throw new ArchiveException("Don't know how to handle format '%s'", format);
             }
         }
     }
@@ -327,7 +333,7 @@ public class Archiver {
      * @param format    the archive format. This uses the same format as accepted by {@link ArchiveStreamFactory}.
      * @param target    the channel to write the new archive to.
      * @param directory the directory that contains the files to archive.
-     * @throws IOException           if an I/O error occurs
+     * @throws IOException           if an I/O error occurs.
      * @throws IllegalStateException if the format does not support {@code SeekableByteChannel}.
      */
     public void create(final String format, final SeekableByteChannel target, final Path directory) throws IOException {

@@ -18,14 +18,12 @@
  */
 package org.apache.commons.compress.archivers;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.SortedMap;
@@ -45,8 +43,9 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
-import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.compress.utils.Sets;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Creates an Archive[In|Out]putStreams from names or the first bytes of the InputStream. In order to add other implementations, you should extend
@@ -203,30 +202,27 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
     /**
      * Try to determine the type of Archiver
      *
-     * @param in input stream
-     * @return type of archiver if found
-     * @throws ArchiveException if an archiver cannot be detected in the stream
+     * @param in input stream.
+     * @return type of archiver if found.
+     * @throws ArchiveException if an archiver cannot be detected in the stream.
      * @since 1.14
      */
     public static String detect(final InputStream in) throws ArchiveException {
         if (in == null) {
             throw new IllegalArgumentException("Stream must not be null.");
         }
-
         if (!in.markSupported()) {
             throw new IllegalArgumentException("Mark is not supported.");
         }
-
         final byte[] signature = new byte[SIGNATURE_SIZE];
         in.mark(signature.length);
         int signatureLength = -1;
         try {
-            signatureLength = IOUtils.readFully(in, signature);
+            signatureLength = IOUtils.read(in, signature);
             in.reset();
         } catch (final IOException e) {
-            throw new ArchiveException("Failure reading signature.", e);
+            throw new ArchiveException("Failure reading signature.", (Throwable) e);
         }
-
         // For now JAR files are detected as ZIP files.
         if (ZipArchiveInputStream.matches(signature, signatureLength)) {
             return ZIP;
@@ -247,45 +243,43 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
         if (SevenZFile.matches(signature, signatureLength)) {
             return SEVEN_Z;
         }
-
         // Dump needs a bigger buffer to check the signature;
         final byte[] dumpsig = new byte[DUMP_SIGNATURE_SIZE];
         in.mark(dumpsig.length);
         try {
-            signatureLength = IOUtils.readFully(in, dumpsig);
+            signatureLength = IOUtils.read(in, dumpsig);
             in.reset();
         } catch (final IOException e) {
-            throw new ArchiveException("IOException while reading dump signature", e);
+            throw new ArchiveException("IOException while reading dump signature", (Throwable) e);
         }
         if (DumpArchiveInputStream.matches(dumpsig, signatureLength)) {
             return DUMP;
         }
-
         // Tar needs an even bigger buffer to check the signature; read the first block
         final byte[] tarHeader = new byte[TAR_HEADER_SIZE];
         in.mark(tarHeader.length);
         try {
-            signatureLength = IOUtils.readFully(in, tarHeader);
+            signatureLength = IOUtils.read(in, tarHeader);
             in.reset();
         } catch (final IOException e) {
-            throw new ArchiveException("IOException while reading tar signature", e);
+            throw new ArchiveException("IOException while reading tar signature", (Throwable) e);
         }
         if (TarArchiveInputStream.matches(tarHeader, signatureLength)) {
             return TAR;
         }
-
         // COMPRESS-117
         if (signatureLength >= TAR_HEADER_SIZE) {
-            try (TarArchiveInputStream inputStream = new TarArchiveInputStream(new ByteArrayInputStream(tarHeader))) {
+            try (TarArchiveInputStream inputStream =
+                    TarArchiveInputStream.builder().setByteArray(tarHeader).get()) {
                 // COMPRESS-191 - verify the header checksum
-                // COMPRESS-644 - do not allow zero byte file entries
                 TarArchiveEntry entry = inputStream.getNextEntry();
                 // try to find the first non-directory entry within the first 10 entries.
                 int count = 0;
                 while (entry != null && entry.isDirectory() && entry.isCheckSumOK() && count++ < TAR_TEST_ENTRY_COUNT) {
                     entry = inputStream.getNextEntry();
                 }
-                if (entry != null && entry.isCheckSumOK() && !entry.isDirectory() && entry.getSize() > 0 || count > 0) {
+                if (entry != null && entry.isCheckSumOK() && !entry.isDirectory() && isName(entry.getGroupName()) && isName(entry.getName())
+                        && isName(entry.getUserName()) || count > 0) {
                     return TAR;
                 }
             } catch (final Exception ignored) {
@@ -312,7 +306,7 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
      * This method may return different results at different times if new providers are dynamically made available to the current Java virtual machine.
      * </p>
      *
-     * @return An immutable, map from names to provider objects
+     * @return An immutable, map from names to provider objects.
      * @since 1.13
      */
     public static SortedMap<String, ArchiveStreamProvider> findAvailableArchiveInputStreamProviders() {
@@ -341,7 +335,7 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
      * This method may return different results at different times if new providers are dynamically made available to the current Java virtual machine.
      * </p>
      *
-     * @return An immutable, map from names to provider objects
+     * @return An immutable, map from names to provider objects.
      * @since 1.13
      */
     public static SortedMap<String, ArchiveStreamProvider> findAvailableArchiveOutputStreamProviders() {
@@ -353,12 +347,17 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
         });
     }
 
+    private static boolean isName(final String value) {
+        // Expect ASCII https://www.mkssoftware.com/docs/man4/tar.4.asp
+        return value.isEmpty() || value.chars().allMatch(ch -> ch > 31 && ch < 128);
+    }
+
     static void putAll(final Set<String> names, final ArchiveStreamProvider provider, final TreeMap<String, ArchiveStreamProvider> map) {
         names.forEach(name -> map.put(toKey(name), provider));
     }
 
     private static String toKey(final String name) {
-        return name.toUpperCase(Locale.ROOT);
+        return StringUtils.toRootUpperCase(name);
     }
 
     /**
@@ -392,11 +391,11 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
      * marks, like BufferedInputStream.
      *
      * @param <I> The {@link ArchiveInputStream} type.
-     * @param in  the input stream
-     * @return the archive input stream
-     * @throws ArchiveException               if the archiver name is not known
-     * @throws StreamingNotSupportedException if the format cannot be read from a stream
-     * @throws IllegalArgumentException       if the stream is null or does not support mark
+     * @param in  the input stream.
+     * @return the archive input stream.
+     * @throws ArchiveException               if the archiver name is not known.
+     * @throws StreamingNotSupportedException if the format cannot be read from a stream.
+     * @throws IllegalArgumentException       if the stream is null or does not support mark.
      */
     public <I extends ArchiveInputStream<? extends ArchiveEntry>> I createArchiveInputStream(final InputStream in) throws ArchiveException {
         return createArchiveInputStream(detect(in), in);
@@ -407,12 +406,12 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
      *
      * @param <I>          The {@link ArchiveInputStream} type.
      * @param archiverName the archive name, i.e. {@value #AR}, {@value #ARJ}, {@value #ZIP}, {@value #TAR}, {@value #JAR}, {@value #CPIO}, {@value #DUMP} or
-     *                     {@value #SEVEN_Z}
-     * @param in           the input stream
-     * @return the archive input stream
-     * @throws ArchiveException               if the archiver name is not known
-     * @throws StreamingNotSupportedException if the format cannot be read from a stream
-     * @throws IllegalArgumentException       if the archiver name or stream is null
+     *                     {@value #SEVEN_Z}.
+     * @param in           the input stream.
+     * @return the archive input stream.
+     * @throws ArchiveException               if the archiver name is not known.
+     * @throws StreamingNotSupportedException if the format cannot be read from a stream.
+     * @throws IllegalArgumentException       if the archiver name or stream is null.
      */
     public <I extends ArchiveInputStream<? extends ArchiveEntry>> I createArchiveInputStream(final String archiverName, final InputStream in)
             throws ArchiveException {
@@ -423,76 +422,85 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
     @Override
     public <I extends ArchiveInputStream<? extends ArchiveEntry>> I createArchiveInputStream(final String archiverName, final InputStream in,
             final String actualEncoding) throws ArchiveException {
-
         if (archiverName == null) {
             throw new IllegalArgumentException("Archiver name must not be null.");
         }
-
         if (in == null) {
             throw new IllegalArgumentException("InputStream must not be null.");
         }
-
-        if (AR.equalsIgnoreCase(archiverName)) {
-            return (I) new ArArchiveInputStream(in);
-        }
-        if (ARJ.equalsIgnoreCase(archiverName)) {
-            if (actualEncoding != null) {
-                return (I) new ArjArchiveInputStream(in, actualEncoding);
+        try {
+            if (AR.equalsIgnoreCase(archiverName)) {
+                return (I) ArArchiveInputStream.builder().setInputStream(in).get();
             }
-            return (I) new ArjArchiveInputStream(in);
-        }
-        if (ZIP.equalsIgnoreCase(archiverName)) {
-            if (actualEncoding != null) {
-                return (I) new ZipArchiveInputStream(in, actualEncoding);
+            if (ARJ.equalsIgnoreCase(archiverName)) {
+                final ArjArchiveInputStream.Builder arjBuilder = ArjArchiveInputStream.builder().setInputStream(in);
+                if (actualEncoding != null) {
+                    arjBuilder.setCharset(actualEncoding);
+                }
+                return (I) arjBuilder.get();
             }
-            return (I) new ZipArchiveInputStream(in);
-        }
-        if (TAR.equalsIgnoreCase(archiverName)) {
-            if (actualEncoding != null) {
-                return (I) new TarArchiveInputStream(in, actualEncoding);
+            if (ZIP.equalsIgnoreCase(archiverName)) {
+                final ZipArchiveInputStream.Builder zipBuilder = ZipArchiveInputStream.builder().setInputStream(in);
+                if (actualEncoding != null) {
+                    zipBuilder.setCharset(actualEncoding);
+                }
+                return (I) zipBuilder.get();
             }
-            return (I) new TarArchiveInputStream(in);
-        }
-        if (JAR.equalsIgnoreCase(archiverName) || APK.equalsIgnoreCase(archiverName)) {
-            if (actualEncoding != null) {
-                return (I) new JarArchiveInputStream(in, actualEncoding);
+            if (TAR.equalsIgnoreCase(archiverName)) {
+                final TarArchiveInputStream.Builder tarBuilder = TarArchiveInputStream.builder().setInputStream(in);
+                if (actualEncoding != null) {
+                    tarBuilder.setCharset(actualEncoding);
+                }
+                return (I) tarBuilder.get();
             }
-            return (I) new JarArchiveInputStream(in);
-        }
-        if (CPIO.equalsIgnoreCase(archiverName)) {
-            if (actualEncoding != null) {
-                return (I) new CpioArchiveInputStream(in, actualEncoding);
+            if (JAR.equalsIgnoreCase(archiverName) || APK.equalsIgnoreCase(archiverName)) {
+                final JarArchiveInputStream.Builder jarBuilder =
+                        JarArchiveInputStream.jarInputStreamBuilder().setInputStream(in);
+                if (actualEncoding != null) {
+                    jarBuilder.setCharset(actualEncoding);
+                }
+                return (I) jarBuilder.get();
             }
-            return (I) new CpioArchiveInputStream(in);
-        }
-        if (DUMP.equalsIgnoreCase(archiverName)) {
-            if (actualEncoding != null) {
-                return (I) new DumpArchiveInputStream(in, actualEncoding);
+            if (CPIO.equalsIgnoreCase(archiverName)) {
+                final CpioArchiveInputStream.Builder cpioBuilder = CpioArchiveInputStream.builder().setInputStream(in);
+                if (actualEncoding != null) {
+                    cpioBuilder.setCharset(actualEncoding);
+                }
+                return (I) cpioBuilder.get();
             }
-            return (I) new DumpArchiveInputStream(in);
+            if (DUMP.equalsIgnoreCase(archiverName)) {
+                final DumpArchiveInputStream.Builder dumpBuilder = DumpArchiveInputStream.builder().setInputStream(in);
+                if (actualEncoding != null) {
+                    dumpBuilder.setCharset(actualEncoding);
+                }
+                return (I) dumpBuilder.get();
+            }
+            if (SEVEN_Z.equalsIgnoreCase(archiverName)) {
+                throw new StreamingNotSupportedException(SEVEN_Z);
+            }
+            final ArchiveStreamProvider archiveStreamProvider = getArchiveInputStreamProviders().get(toKey(archiverName));
+            if (archiveStreamProvider != null) {
+                return archiveStreamProvider.createArchiveInputStream(archiverName, in, actualEncoding);
+            }
+            throw new ArchiveException("Archiver: %s not found.", archiverName);
+        } catch (final ArchiveException e) {
+            throw e;
+        } catch (final IOException e) {
+            throw new ArchiveException(
+                    "IOException while creating " + archiverName + " input stream: " + e.getMessage(), e);
         }
-        if (SEVEN_Z.equalsIgnoreCase(archiverName)) {
-            throw new StreamingNotSupportedException(SEVEN_Z);
-        }
-
-        final ArchiveStreamProvider archiveStreamProvider = getArchiveInputStreamProviders().get(toKey(archiverName));
-        if (archiveStreamProvider != null) {
-            return archiveStreamProvider.createArchiveInputStream(archiverName, in, actualEncoding);
-        }
-
-        throw new ArchiveException("Archiver: " + archiverName + " not found.");
     }
 
     /**
      * Creates an archive output stream from an archiver name and an output stream.
      *
      * @param <O>          The {@link ArchiveOutputStream} type.
-     * @param archiverName the archive name, i.e. {@value #AR}, {@value #ZIP}, {@value #TAR}, {@value #JAR} or {@value #CPIO}
-     * @param out          the output stream
-     * @return the archive output stream
-     * @throws ArchiveException               if the archiver name is not known
-     * @throws StreamingNotSupportedException if the format cannot be written to a stream
-     * @throws IllegalArgumentException       if the archiver name or stream is null
+     * @param archiverName the archive name, i.e. {@value #AR}, {@value #ZIP}, {@value #TAR}, {@value #JAR} or {@value #CPIO}.
+     * @param out          the output stream.
+     * @return the archive output stream.
+     * @throws ArchiveException               if the archiver name is not known.
+     * @throws StreamingNotSupportedException if the format cannot be written to a stream.
+     * @throws IllegalArgumentException       if the archiver name or stream is null.
      */
     public <O extends ArchiveOutputStream<? extends ArchiveEntry>> O createArchiveOutputStream(final String archiverName, final OutputStream out)
             throws ArchiveException {
@@ -544,7 +552,7 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
         if (archiveStreamProvider != null) {
             return archiveStreamProvider.createArchiveOutputStream(archiverName, out, actualEncoding);
         }
-        throw new ArchiveException("Archiver: " + archiverName + " not found.");
+        throw new ArchiveException("Archiver: %s not found.", archiverName);
     }
 
     /**
@@ -576,7 +584,7 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
     /**
      * Gets the encoding to use for arj, jar, ZIP, dump, cpio and tar files, or null for the archiver default.
      *
-     * @return entry encoding, or null for the archiver default
+     * @return entry encoding, or null for the archiver default.
      * @since 1.5
      */
     public String getEntryEncoding() {
@@ -598,7 +606,7 @@ public class ArchiveStreamFactory implements ArchiveStreamProvider {
      *
      * @param entryEncoding the entry encoding, null uses the archiver default.
      * @since 1.5
-     * @deprecated 1.10 use {@link #ArchiveStreamFactory(String)} to specify the encoding
+     * @deprecated 1.10 use {@link #ArchiveStreamFactory(String)} to specify the encoding.
      */
     @Deprecated
     public void setEntryEncoding(final String entryEncoding) {

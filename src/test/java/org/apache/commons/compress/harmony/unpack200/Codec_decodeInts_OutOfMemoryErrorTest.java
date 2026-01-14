@@ -21,6 +21,7 @@ package org.apache.commons.compress.harmony.unpack200;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Base64;
 
 import org.apache.commons.compress.compressors.pack200.Pack200CompressorInputStream;
 import org.apache.commons.compress.compressors.pack200.Pack200Strategy;
@@ -67,7 +68,7 @@ import org.junit.jupiter.api.Test;
  * </pre>
  */
 @Disabled
-public class Codec_decodeInts_OutOfMemoryErrorTest {
+class Codec_decodeInts_OutOfMemoryErrorTest {
 
     // @formatter:off
     private static final String BASE64_BYTES =
@@ -75,8 +76,8 @@ public class Codec_decodeInts_OutOfMemoryErrorTest {
     // @formatter:on
 
     @Test
-    public void test() throws IOException {
-        final byte[] input = java.util.Base64.getDecoder().decode(BASE64_BYTES);
+    void test() throws IOException {
+        final byte[] input = Base64.getDecoder().decode(BASE64_BYTES);
         try (InputStream is = new Pack200CompressorInputStream(new ByteArrayInputStream(input), Pack200Strategy.TEMP_FILE)) {
             // do nothing
         }

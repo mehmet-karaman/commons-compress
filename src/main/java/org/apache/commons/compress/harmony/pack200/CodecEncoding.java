@@ -27,6 +27,8 @@ import java.util.Map;
 
 /**
  * CodecEncoding is used to get the right Codec for a given meta-encoding.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CodecEncoding {
 
@@ -70,6 +72,12 @@ public class CodecEncoding {
         canonicalCodecsToSpecifiers = reverseMap;
     }
 
+    /**
+     * Gets the canonical codec for the given index.
+     *
+     * @param i the index.
+     * @return the canonical codec.
+     */
     public static BHSDCodec getCanonicalCodec(final int i) {
         return canonicalCodec[i];
     }
@@ -81,17 +89,17 @@ public class CodecEncoding {
      *
      * @param value        the canonical encoding value
      * @param in           the input stream to read additional byte headers from
-     * @param defaultCodec TODO
+     * @param defaultCodec the default codec to use.
      * @return the corresponding codec, or {@code null} if the default should be used
      * @throws IOException      if there is a problem reading from the input stream (which in reality, is never, since the band_headers are likely stored in a
      *                          byte array and accessed via a ByteArrayInputStream. However, an EOFException could occur if things go wrong)
-     * @throws Pack200Exception TODO
+     * @throws Pack200Exception if a Pack200 error occurs.
      */
     public static Codec getCodec(final int value, final InputStream in, final Codec defaultCodec) throws IOException, Pack200Exception {
         // Sanity check to make sure that no-one has changed
         // the canonical codecs, which would really cause havoc
         if (canonicalCodec.length != 116) {
-            throw new Error("Canonical encodings have been incorrectly modified");
+            throw new Pack200Exception("Canonical encodings have been incorrectly modified");
         }
         if (value < 0) {
             throw new IllegalArgumentException("Encoding cannot be less than zero");
@@ -148,7 +156,7 @@ public class CodecEncoding {
             return new RunCodec(k, aCodec, bCodec);
         }
         if (value < 141 || value > 188) {
-            throw new Pack200Exception("Invalid codec encoding byte (" + value + ") found");
+            throw new Pack200Exception("Invalid codec encoding byte (%s) found", value);
         }
         final int offset = value - 141;
         final boolean fdef = (offset & 1) == 1;
@@ -177,6 +185,13 @@ public class CodecEncoding {
         return new PopulationCodec(fCodec, tCodec, uCodec);
     }
 
+    /**
+     * Gets the specifier for the given codec and default for band.
+     *
+     * @param codec the codec.
+     * @param defaultForBand the default for band.
+     * @return the specifier array.
+     */
     public static int[] getSpecifier(final Codec codec, final Codec defaultForBand) {
         if (canonicalCodecsToSpecifiers.containsKey(codec)) {
             return new int[] { canonicalCodecsToSpecifiers.get(codec).intValue() };
@@ -286,7 +301,22 @@ public class CodecEncoding {
         return null;
     }
 
+    /**
+     * Gets the specifier for the default codec.
+     *
+     * @param defaultCodec the default codec.
+     * @return the specifier.
+     */
     public static int getSpecifierForDefaultCodec(final BHSDCodec defaultCodec) {
         return getSpecifier(defaultCodec, null)[0];
+    }
+
+    /**
+     * Constructs a new instance.
+     *
+     * @deprecated Will be removed in 2.0.
+     */
+    @Deprecated
+    public CodecEncoding() {
     }
 }

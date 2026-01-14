@@ -38,72 +38,88 @@ public class ArjArchiveEntry implements ArchiveEntry {
     public static class HostOs {
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int DOS = 0;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int PRIMOS = 1;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int UNIX = 2;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int AMIGA = 3;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int MAC_OS = 4;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int OS_2 = 5;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int APPLE_GS = 6;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int ATARI_ST = 7;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int NEXT = 8;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int VAX_VMS = 9;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int WIN95 = 10;
 
         /**
-         * {@value}
+         * Constant value {@value}.
          */
         public static final int WIN32 = 11;
+
+        /**
+         * Constructs a new instance.
+         *
+         * @deprecated Will be private in the next major release.
+         */
+        @Deprecated
+        public HostOs() {
+            // empty
+        }
     }
 
     private final LocalFileHeader localFileHeader;
 
+    /**
+     * Constructs a new instance.
+     */
     public ArjArchiveEntry() {
         localFileHeader = new LocalFileHeader();
     }
 
+    /**
+     * Constructs a new instance.
+     */
     ArjArchiveEntry(final LocalFileHeader localFileHeader) {
         this.localFileHeader = localFileHeader;
     }
@@ -124,7 +140,7 @@ public class ArjArchiveEntry implements ArchiveEntry {
      * The operating system the archive has been created on.
      *
      * @see HostOs
-     * @return the host OS code
+     * @return the host OS code.
      */
     public int getHostOs() {
         return localFileHeader.hostOS;
@@ -140,7 +156,7 @@ public class ArjArchiveEntry implements ArchiveEntry {
      * the current time zone into account if the archive has been created on Unix.
      * </p>
      *
-     * @return the last modified date
+     * @return the last modified date.
      */
     @Override
     public Date getLastModifiedDate() {
@@ -156,10 +172,10 @@ public class ArjArchiveEntry implements ArchiveEntry {
      * File mode of this entry.
      *
      * <p>
-     * The format depends on the host os that created the entry.
+     * The format depends on the host operating system that created the entry.
      * </p>
      *
-     * @return the file mode
+     * @return the file mode.
      */
     public int getMode() {
         return localFileHeader.fileAccessMode;
@@ -196,9 +212,10 @@ public class ArjArchiveEntry implements ArchiveEntry {
      * File mode of this entry as Unix stat value.
      *
      * <p>
-     * Will only be non-zero of the host os was Unix.
+     * Will only be non-zero of the host operating system was Unix.
+     * </p>
      *
-     * @return the Unix mode
+     * @return the Unix mode.
      */
     public int getUnixMode() {
         return isHostOsUnix() ? getMode() : 0;
@@ -213,7 +230,7 @@ public class ArjArchiveEntry implements ArchiveEntry {
     /**
      * True if the entry refers to a directory.
      *
-     * @return True if the entry refers to a directory
+     * @return True if the entry refers to a directory.
      */
     @Override
     public boolean isDirectory() {
@@ -223,7 +240,7 @@ public class ArjArchiveEntry implements ArchiveEntry {
     /**
      * Is the operating system the archive has been created on one that is considered a Unix OS by arj?
      *
-     * @return whether the operating system the archive has been created on is considered a Unix OS by arj
+     * @return whether the operating system the archive has been created on is considered a Unix OS by arj.
      */
     public boolean isHostOsUnix() {
         return getHostOs() == HostOs.UNIX || getHostOs() == HostOs.NEXT;

@@ -32,6 +32,7 @@ import java.util.zip.Deflater;
 
 import org.apache.commons.compress.parallel.FileBasedScatterGatherBackingStore;
 import org.apache.commons.compress.parallel.ScatterGatherBackingStore;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 
 /**
@@ -69,7 +70,6 @@ public class ScatterZipOutputStream implements Closeable {
          *
          * @return the zipArchiveEntry that is the basis for this request.
          */
-
         public ZipArchiveEntry transferToArchiveEntry() {
             final ZipArchiveEntry entry = zipArchiveEntryRequest.getZipArchiveEntry();
             entry.setCompressedSize(compressedSize);
@@ -80,28 +80,41 @@ public class ScatterZipOutputStream implements Closeable {
         }
     }
 
+    /**
+     * Writes ZIP entries to a ZIP archive.
+     */
     public static class ZipEntryWriter implements Closeable {
         private final Iterator<CompressedEntry> itemsIterator;
-        private final InputStream itemsIteratorData;
+        private final InputStream inputStream;
 
-        public ZipEntryWriter(final ScatterZipOutputStream scatter) throws IOException {
-            scatter.backingStore.closeForWriting();
-            itemsIterator = scatter.items.iterator();
-            itemsIteratorData = scatter.backingStore.getInputStream();
+        /**
+         * Constructs a new instance.
+         *
+         * @param out a ScatterZipOutputStream.
+         * @throws IOException if an I/O error occurs.
+         */
+        public ZipEntryWriter(final ScatterZipOutputStream out) throws IOException {
+            out.backingStore.closeForWriting();
+            itemsIterator = out.items.iterator();
+            inputStream = out.backingStore.getInputStream();
         }
 
         @Override
         public void close() throws IOException {
-            if (itemsIteratorData != null) {
-                itemsIteratorData.close();
-            }
+            IOUtils.close(inputStream);
         }
 
+        /**
+         * Writes the next ZIP entry to the given target.
+         *
+         * @param target Where to write.
+         * @throws IOException if an I/O error occurs.
+         */
         public void writeNextZipEntry(final ZipArchiveOutputStream target) throws IOException {
             final CompressedEntry compressedEntry = itemsIterator.next();
             // @formatter:off
             try (BoundedInputStream rawStream = BoundedInputStream.builder()
-                    .setInputStream(itemsIteratorData)
+                    .setInputStream(inputStream)
                     .setMaxCount(compressedEntry.compressedSize)
                     .setPropagateClose(false)
                     .get()) {
@@ -116,7 +129,7 @@ public class ScatterZipOutputStream implements Closeable {
      *
      * @param file The file to offload compressed data into.
      * @return A ScatterZipOutputStream that is ready for use.
-     * @throws FileNotFoundException if the file cannot be found
+     * @throws FileNotFoundException if the file cannot be found.
      */
     public static ScatterZipOutputStream fileBased(final File file) throws FileNotFoundException {
         return pathBased(file.toPath(), Deflater.DEFAULT_COMPRESSION);
@@ -126,9 +139,9 @@ public class ScatterZipOutputStream implements Closeable {
      * Creates a {@link ScatterZipOutputStream} that is backed by a file
      *
      * @param file             The file to offload compressed data into.
-     * @param compressionLevel The compression level to use, @see #Deflater
+     * @param compressionLevel The compression level to use, @see #Deflater.
      * @return A ScatterZipOutputStream that is ready for use.
-     * @throws FileNotFoundException if the file cannot be found
+     * @throws FileNotFoundException if the file cannot be found.
      */
     public static ScatterZipOutputStream fileBased(final File file, final int compressionLevel) throws FileNotFoundException {
         return pathBased(file.toPath(), compressionLevel);
@@ -139,7 +152,7 @@ public class ScatterZipOutputStream implements Closeable {
      *
      * @param path The path to offload compressed data into.
      * @return A ScatterZipOutputStream that is ready for use.
-     * @throws FileNotFoundException if the path cannot be found
+     * @throws FileNotFoundException if the path cannot be found.
      * @since 1.22
      */
     public static ScatterZipOutputStream pathBased(final Path path) throws FileNotFoundException {
@@ -150,9 +163,9 @@ public class ScatterZipOutputStream implements Closeable {
      * Creates a {@link ScatterZipOutputStream} that is backed by a file
      *
      * @param path             The path to offload compressed data into.
-     * @param compressionLevel The compression level to use, @see #Deflater
+     * @param compressionLevel The compression level to use, @see #Deflater.
      * @return A ScatterZipOutputStream that is ready for use.
-     * @throws FileNotFoundException if the path cannot be found
+     * @throws FileNotFoundException if the path cannot be found.
      * @since 1.22
      */
     public static ScatterZipOutputStream pathBased(final Path path, final int compressionLevel) throws FileNotFoundException {
@@ -172,6 +185,12 @@ public class ScatterZipOutputStream implements Closeable {
 
     private ZipEntryWriter zipEntryWriter;
 
+    /**
+     * Constructs a new instance.
+     *
+     * @param backingStore the backing store.
+     * @param streamCompressor Deflates ZIP entries.
+     */
     public ScatterZipOutputStream(final ScatterGatherBackingStore backingStore, final StreamCompressor streamCompressor) {
         this.backingStore = backingStore;
         this.streamCompressor = streamCompressor;
@@ -181,7 +200,7 @@ public class ScatterZipOutputStream implements Closeable {
      * Adds an archive entry to this scatter stream.
      *
      * @param zipArchiveEntryRequest The entry to write.
-     * @throws IOException If writing fails
+     * @throws IOException If writing fails.
      */
     public void addArchiveEntry(final ZipArchiveEntryRequest zipArchiveEntryRequest) throws IOException {
         try (InputStream payloadStream = zipArchiveEntryRequest.getPayloadStream()) {
@@ -194,7 +213,7 @@ public class ScatterZipOutputStream implements Closeable {
     /**
      * Closes this stream, freeing all resources involved in the creation of this stream.
      *
-     * @throws IOException If closing fails
+     * @throws IOException If closing fails.
      */
     @Override
     public void close() throws IOException {
@@ -202,9 +221,7 @@ public class ScatterZipOutputStream implements Closeable {
             return;
         }
         try {
-            if (zipEntryWriter != null) {
-                zipEntryWriter.close();
-            }
+            IOUtils.close(zipEntryWriter);
             backingStore.close();
         } finally {
             streamCompressor.close();
@@ -215,7 +232,7 @@ public class ScatterZipOutputStream implements Closeable {
      * Writes the contents of this scatter stream to a target archive.
      *
      * @param target The archive to receive the contents of this {@link ScatterZipOutputStream}.
-     * @throws IOException If writing fails
+     * @throws IOException If writing fails.
      * @see #zipEntryWriter()
      */
     public void writeTo(final ZipArchiveOutputStream target) throws IOException {
@@ -238,8 +255,8 @@ public class ScatterZipOutputStream implements Closeable {
     /**
      * Gets a ZIP entry writer for this scatter stream.
      *
-     * @throws IOException If getting scatter stream input stream
-     * @return the ZipEntryWriter created on first call of the method
+     * @throws IOException If getting scatter stream input stream.
+     * @return the ZipEntryWriter created on first call of the method.
      */
     public ZipEntryWriter zipEntryWriter() throws IOException {
         if (zipEntryWriter == null) {

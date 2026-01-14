@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.commons.compress.harmony.pack200.Pack200Exception;
 import org.apache.commons.compress.harmony.unpack200.bytecode.AnnotationDefaultAttribute;
 import org.apache.commons.compress.harmony.unpack200.bytecode.AnnotationsAttribute.Annotation;
 import org.apache.commons.compress.harmony.unpack200.bytecode.AnnotationsAttribute.ElementValue;
@@ -38,8 +39,13 @@ import org.apache.commons.compress.harmony.unpack200.bytecode.RuntimeVisibleorIn
 
 /**
  * A group of metadata bands, such as class_RVA_bands, method_AD_bands etc.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class MetadataBandGroup {
+
+    /** Size in bytes of an {@link ElementValue} instance: header, Object, int, int. */
+    private static final int ELEMENT_VALUE_BYTES = 8 + 8 + Integer.BYTES + Integer.BYTES;
 
     private static CPUTF8 rvaUTF8;
     private static CPUTF8 riaUTF8;
@@ -47,18 +53,38 @@ public class MetadataBandGroup {
     private static CPUTF8 rvpaUTF8;
     private static CPUTF8 ripaUTF8;
 
+    /**
+     * Sets the RIA attribute name.
+     *
+     * @param cpUTF8Value the attribute name.
+     */
     public static void setRiaAttributeName(final CPUTF8 cpUTF8Value) {
         riaUTF8 = cpUTF8Value;
     }
 
+    /**
+     * Sets the RIPA attribute name.
+     *
+     * @param cpUTF8Value the attribute name.
+     */
     public static void setRipaAttributeName(final CPUTF8 cpUTF8Value) {
         ripaUTF8 = cpUTF8Value;
     }
 
+    /**
+     * Sets the RVA attribute name.
+     *
+     * @param cpUTF8Value the attribute name.
+     */
     public static void setRvaAttributeName(final CPUTF8 cpUTF8Value) {
         rvaUTF8 = cpUTF8Value;
     }
 
+    /**
+     * Sets the RVPA attribute name.
+     *
+     * @param cpUTF8Value the attribute name.
+     */
     public static void setRvpaAttributeName(final CPUTF8 cpUTF8Value) {
         rvpaUTF8 = cpUTF8Value;
     }
@@ -69,25 +95,96 @@ public class MetadataBandGroup {
 
     private List<Attribute> attributes;
 
+    /**
+     * Parameter number of annotations.
+     */
     public int[] param_NB;
 
+    /**
+     * Annotation counts.
+     */
     public int[] anno_N;
+
+    /**
+     * Annotation types.
+     */
     public CPUTF8[][] type_RS;
+
+    /**
+     * Annotation pair counts.
+     */
     public int[][] pair_N;
+
+    /**
+     * Annotation pair names.
+     */
     public CPUTF8[] name_RU;
+
+    /**
+     * Annotation value tags.
+     */
     public int[] T;
+
+    /**
+     * Integer constant values.
+     */
     public CPInteger[] caseI_KI;
+
+    /**
+     * Double constant values.
+     */
     public CPDouble[] caseD_KD;
+
+    /**
+     * Float constant values.
+     */
     public CPFloat[] caseF_KF;
+
+    /**
+     * Long constant values.
+     */
     public CPLong[] caseJ_KJ;
+
+    /**
+     * Class constant values.
+     */
     public CPUTF8[] casec_RS;
+
+    /**
+     * Enum type values.
+     */
     public String[] caseet_RS;
+
+    /**
+     * Enum constant values.
+     */
     public String[] caseec_RU;
+
+    /**
+     * String constant values.
+     */
     public CPUTF8[] cases_RU;
+
+    /**
+     * Array element counts.
+     */
     public int[] casearray_N;
+
+    /**
+     * Nested annotation types.
+     */
     public CPUTF8[] nesttype_RS;
+
+    /**
+     * Nested annotation pair counts.
+     */
     public int[] nestpair_N;
+
+    /**
+     * Nested annotation pair names.
+     */
     public CPUTF8[] nestname_RU;
+
     private int caseI_KI_Index;
 
     private int caseD_KD_Index;
@@ -118,12 +215,26 @@ public class MetadataBandGroup {
 
     private int pair_N_Index;
 
+    /**
+     * Constructs a new MetadataBandGroup.
+     *
+     * @param type the metadata type.
+     * @param cpBands the constant pool bands.
+     */
     public MetadataBandGroup(final String type, final CpBands cpBands) {
         this.type = type;
         this.cpBands = cpBands;
     }
 
-    private Annotation getAnnotation(final CPUTF8 type, final int pairCount, final Iterator<CPUTF8> namesIterator) {
+    /**
+     * Gets a new Annotation.
+     *
+     * @param numPairs      Number of pairs, matches the lengths of {@code elementNames} and {@code elementValues} in the new Annotation.
+     * @param type          Type.
+     * @param namesIterator Iterates names to create pairs.
+     * @throws Pack200Exception Thrown on a format error.
+     */
+    private Annotation getAnnotation(final CPUTF8 type, final int pairCount, final Iterator<CPUTF8> namesIterator) throws Pack200Exception {
         final CPUTF8[] elementNames = new CPUTF8[pairCount];
         final ElementValue[] elementValues = new ElementValue[pairCount];
         for (int j = 0; j < elementNames.length; j++) {
@@ -134,13 +245,22 @@ public class MetadataBandGroup {
         return new Annotation(pairCount, type, elementNames, elementValues);
     }
 
-    private Attribute getAttribute(final int numAnnotations, final CPUTF8[] types, final int[] pairCounts, final Iterator<CPUTF8> namesIterator) {
+    private Attribute getAttribute(final int numAnnotations, final CPUTF8[] types, final int[] pairCounts, final Iterator<CPUTF8> namesIterator)
+            throws Pack200Exception {
         final Annotation[] annotations = new Annotation[numAnnotations];
-        Arrays.setAll(annotations, i -> getAnnotation(types[i], pairCounts[i], namesIterator));
+        for (int i = 0; i < annotations.length; i++) {
+            annotations[i] = getAnnotation(types[i], pairCounts[i], namesIterator);
+        }
         return new RuntimeVisibleorInvisibleAnnotationsAttribute(type.equals("RVA") ? rvaUTF8 : riaUTF8, annotations);
     }
 
-    public List<Attribute> getAttributes() {
+    /**
+     * Gets the attributes.
+     *
+     * @return the attributes.
+     * @throws Pack200Exception if a Pack200 error occurs.
+     */
+    public List<Attribute> getAttributes() throws Pack200Exception {
         // TODO: Optimize iterators!
         if (attributes == null) {
             attributes = new ArrayList<>();
@@ -181,7 +301,7 @@ public class MetadataBandGroup {
         return attributes;
     }
 
-    private Object getNextValue(final int t) {
+    private Object getNextValue(final int t) throws Pack200Exception {
         switch (t) {
         case 'B':
         case 'C':
@@ -206,7 +326,7 @@ public class MetadataBandGroup {
             return cases_RU[cases_RU_Index++];
         case '[':
             final int arraySize = casearray_N[casearray_N_Index++];
-            final ElementValue[] nestedArray = new ElementValue[arraySize];
+            final ElementValue[] nestedArray = new ElementValue[Pack200Exception.checkObjectArray(arraySize, ELEMENT_VALUE_BYTES)];
             for (int i = 0; i < arraySize; i++) {
                 final int nextT = T[T_index++];
                 nestedArray[i] = new ElementValue(nextT, getNextValue(nextT));
@@ -221,13 +341,15 @@ public class MetadataBandGroup {
         return null;
     }
 
-    private Attribute getParameterAttribute(final int numParameters, final Iterator<CPUTF8> namesIterator) {
+    private Attribute getParameterAttribute(final int numParameters, final Iterator<CPUTF8> namesIterator) throws Pack200Exception {
         final ParameterAnnotation[] parameterAnnotations = new ParameterAnnotation[numParameters];
         for (int i = 0; i < numParameters; i++) {
             final int numAnnotations = anno_N[anno_N_Index++];
             final int[] pairCounts = pair_N[pair_N_Index++];
             final Annotation[] annotations = new Annotation[numAnnotations];
-            Arrays.setAll(annotations, j -> getAnnotation(type_RS[anno_N_Index - 1][j], pairCounts[j], namesIterator));
+            for (int j = 0; j < annotations.length; j++) {
+                annotations[j] = getAnnotation(type_RS[anno_N_Index - 1][j], pairCounts[j], namesIterator);
+            }
             parameterAnnotations[i] = new ParameterAnnotation(annotations);
         }
         return new RuntimeVisibleorInvisibleParameterAnnotationsAttribute(type.equals("RVPA") ? rvpaUTF8 : ripaUTF8, parameterAnnotations);

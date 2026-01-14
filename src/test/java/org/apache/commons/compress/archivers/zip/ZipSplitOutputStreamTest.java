@@ -28,46 +28,36 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 
 import org.apache.commons.compress.AbstractTest;
+import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
 
-public class ZipSplitOutputStreamTest extends AbstractTest {
+class ZipSplitOutputStreamTest extends AbstractTest {
 
     @Test
-    public void testCreateSplittedFiles() throws IOException {
+    void testCreateSplittedFiles() throws IOException {
         final File testOutputFile = newTempFile("testCreateSplittedFiles.zip");
         final int splitSize = 100 * 1024; /* 100 KB */
         final File fileToTest = getFile("COMPRESS-477/split_zip_created_by_zip/zip_to_compare_created_by_zip.zip");
-        try (ZipSplitOutputStream zipSplitOutputStream = new ZipSplitOutputStream(testOutputFile, splitSize)) {
-            try (InputStream inputStream = Files.newInputStream(fileToTest.toPath())) {
-                final byte[] buffer = new byte[4096];
-                int readLen;
-                while ((readLen = inputStream.read(buffer)) > 0) {
-                    zipSplitOutputStream.write(buffer, 0, readLen);
-                }
-            }
+        try (ZipSplitOutputStream zipSplitOutputStream = new ZipSplitOutputStream(testOutputFile, splitSize);
+                InputStream inputStream = Files.newInputStream(fileToTest.toPath())) {
+            IOUtils.copy(inputStream, zipSplitOutputStream);
         }
-
         File zipFile = new File(getTempDirFile().getPath(), "testCreateSplittedFiles.z01");
         assertEquals(zipFile.length(), splitSize);
-
         zipFile = new File(getTempDirFile().getPath(), "testCreateSplittedFiles.z02");
         assertEquals(zipFile.length(), splitSize);
-
         zipFile = new File(getTempDirFile().getPath(), "testCreateSplittedFiles.z03");
         assertEquals(zipFile.length(), splitSize);
-
         zipFile = new File(getTempDirFile().getPath(), "testCreateSplittedFiles.z04");
         assertEquals(zipFile.length(), splitSize);
-
         zipFile = new File(getTempDirFile().getPath(), "testCreateSplittedFiles.z05");
         assertEquals(zipFile.length(), splitSize);
-
         zipFile = new File(getTempDirFile().getPath(), "testCreateSplittedFiles.zip");
         assertEquals(zipFile.length(), fileToTest.length() + 4 - splitSize * 5);
     }
 
     @Test
-    public void testSplitZipBeginsWithZipSplitSignature() throws IOException {
+    void testSplitZipBeginsWithZipSplitSignature() throws IOException {
         final File tempFile = createTempFile("temp", "zip");
         try (ZipSplitOutputStream is = new ZipSplitOutputStream(tempFile, 100 * 1024L);
                 InputStream inputStream = Files.newInputStream(tempFile.toPath())) {
@@ -78,17 +68,17 @@ public class ZipSplitOutputStreamTest extends AbstractTest {
     }
 
     @Test
-    public void testThrowsExceptionIfSplitSizeIsTooLarge() {
+    void testThrowsExceptionIfSplitSizeIsTooLarge() {
         assertThrows(IllegalArgumentException.class, () -> new ZipSplitOutputStream(createTempFile("temp", "zip"), 4 * 1024 * 1024 * 1024L));
     }
 
     @Test
-    public void testThrowsExceptionIfSplitSizeIsTooSmall() {
+    void testThrowsExceptionIfSplitSizeIsTooSmall() {
         assertThrows(IllegalArgumentException.class, () -> new ZipSplitOutputStream(createTempFile("temp", "zip"), 64 * 1024 - 1));
     }
 
     @Test
-    public void testThrowsIfUnsplittableSizeLargerThanSplitSize() throws IOException {
+    void testThrowsIfUnsplittableSizeLargerThanSplitSize() throws IOException {
         final long splitSize = 100 * 1024;
         final ZipSplitOutputStream output = new ZipSplitOutputStream(createTempFile("temp", "zip"), splitSize);
         assertThrows(IllegalArgumentException.class, () -> output.prepareToWriteUnsplittableContent(splitSize + 1));

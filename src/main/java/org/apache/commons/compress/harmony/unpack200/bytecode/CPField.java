@@ -22,9 +22,19 @@ import java.util.List;
 
 /**
  * Field constant pool entry.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPField extends CPMember {
 
+    /**
+     * Constructs a new CPField.
+     *
+     * @param name the field name.
+     * @param descriptor the field descriptor.
+     * @param flags the field flags.
+     * @param attributes the field attributes.
+     */
     public CPField(final CPUTF8 name, final CPUTF8 descriptor, final long flags, final List<Attribute> attributes) {
         super(name, descriptor, flags, attributes);
     }

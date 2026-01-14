@@ -29,9 +29,11 @@ import java.io.InputStream;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.utils.BitInputStream;
 import org.apache.commons.compress.utils.InputStreamStatistics;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.CloseShieldInputStream;
 
 /**
@@ -41,10 +43,13 @@ import org.apache.commons.io.input.CloseShieldInputStream;
  */
 public class BZip2CompressorInputStream extends CompressorInputStream implements BZip2Constants, InputStreamStatistics {
 
-    private static final class Data {
+    // package private for testing
+    static final class Data {
 
         // (with blockSize 900k)
         final boolean[] inUse = new boolean[256]; // 256 byte
+        // Always equal to the number of true values in inUse[] plus 2.
+        private int inUseCount = 2;
 
         final byte[] seqToUnseq = new byte[256]; // 256 byte
         final byte[] selector = new byte[MAX_SELECTORS]; // 18002 byte
@@ -55,8 +60,10 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
          */
         final int[] unzftab = new int[256]; // 1024 byte
 
-        final int[][] limit = new int[N_GROUPS][MAX_ALPHA_SIZE]; // 6192 byte
-        final int[][] base = new int[N_GROUPS][MAX_ALPHA_SIZE]; // 6192 byte
+        // Needs indexes from 0 to MAX_CODE_LEN inclusive.
+        final int[][] limit = new int[N_GROUPS][MAX_CODE_LEN + 1];
+        // Needs indexes from 0 to MAX_CODE_LEN + 1 inclusive.
+        final int[][] base = new int[N_GROUPS][MAX_CODE_LEN + 2];
         final int[][] perm = new int[N_GROUPS][MAX_ALPHA_SIZE]; // 6192 byte
         final int[] minLens = new int[N_GROUPS]; // 24 byte
 
@@ -131,32 +138,69 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
     /**
      * read bits from the input stream
      *
-     * @param n the number of bits to read, must not exceed 32?
-     * @return the requested bits combined into an int
-     * @throws IOException
+     * @param n the number of bits to read, must not exceed 32?.
+     * @return the requested bits combined into an int.
+     * @throws IOException if an I/O error occurs.
      */
     private static int bsR(final BitInputStream bin, final int n) throws IOException {
-        final long thech = bin.readBits(n);
-        if (thech < 0) {
-            throw new IOException("Unexpected end of stream");
+        final long value = bin.readBits(n);
+        if (value < 0) {
+            throw new CompressorException("Unexpected end of stream");
         }
-        return (int) thech;
+        return (int) value;
     }
 
     private static void checkBounds(final int checkVal, final int limitExclusive, final String name) throws IOException {
         if (checkVal < 0) {
-            throw new IOException("Corrupted input, " + name + " value negative");
+            throw new CompressorException("Corrupted input, '%s' value negative", name);
         }
         if (checkVal >= limitExclusive) {
-            throw new IOException("Corrupted input, " + name + " value too big");
+            throw new CompressorException("Corrupted input, '%s' value too big", name);
+        }
+    }
+
+    /**
+     * Builds the Huffman decoding tables for use by {@code recvDecodingTables()}.
+     *
+     * @param alphaSize the alphabet size, guaranteed by the caller to be in the range [2, 258]
+     *                  (RUNA, RUNB, 255 byte values, and EOB).
+     * @param nGroups   the number of Huffman coding groups, guaranteed by the caller to be in the range [0, 6].
+     * @param dataShadow the data structure into which the tables are built; requires
+     *                   {@code temp_charArray2d} to be initialized.
+     */
+    static void createHuffmanDecodingTables(final int alphaSize, final int nGroups, final Data dataShadow) {
+        final char[][] len = dataShadow.temp_charArray2d;
+        final int[] minLens = dataShadow.minLens;
+        final int[][] limit = dataShadow.limit;
+        final int[][] base = dataShadow.base;
+        final int[][] perm = dataShadow.perm;
+
+        for (int t = 0; t < nGroups; t++) {
+            final char[] len_t = len[t];
+            int minLen = len_t[0];
+            int maxLen = len_t[0];
+            for (int i = 1; i < alphaSize; i++) {
+                final char lent = len_t[i];
+                if (lent > maxLen) {
+                    maxLen = lent;
+                }
+                if (lent < minLen) {
+                    minLen = lent;
+                }
+            }
+            hbCreateDecodeTables(limit[t], base[t], perm[t], len[t], minLen, maxLen, alphaSize);
+            minLens[t] = minLen;
         }
     }
 
     /**
      * Called by createHuffmanDecodingTables() exclusively.
+     *
+     * @param minLen minimum code length in the range [1, {@value MAX_CODE_LEN}] guaranteed by the caller.
+     * @param maxLen maximum code length in the range [1, {@value MAX_CODE_LEN}] guaranteed by the caller.
      */
     private static void hbCreateDecodeTables(final int[] limit, final int[] base, final int[] perm, final char[] length, final int minLen, final int maxLen,
-            final int alphaSize) throws IOException {
+            final int alphaSize) {
         for (int i = minLen, pp = 0; i <= maxLen; i++) {
             for (int j = 0; j < alphaSize; j++) {
                 if (length[j] == i) {
@@ -164,47 +208,157 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
                 }
             }
         }
-
-        for (int i = MAX_CODE_LEN; --i > 0;) {
-            base[i] = 0;
-            limit[i] = 0;
-        }
-
+        // Ensure the arrays were not reused.
+        Arrays.fill(base, 0);
+        Arrays.fill(limit, minLen, maxLen + 1, 0);
+        // Compute histogram of code lengths, shifted by 1.
         for (int i = 0; i < alphaSize; i++) {
-            final int l = length[i];
-            checkBounds(l, MAX_ALPHA_SIZE, "length");
-            base[l + 1]++;
+            final int len = length[i] + 1;
+            base[len]++;
         }
-
-        for (int i = 1, b = base[0]; i < MAX_CODE_LEN; i++) {
-            b += base[i];
-            base[i] = b;
+        // Compute cumulative counts: base[len] = # of codes with length < len.
+        // In other terms: base[len] = index of the first code in the `perm` table.
+        for (int len = 1; len < base.length; len++) {
+            base[len] += base[len - 1];
         }
-
-        for (int i = minLen, vec = 0, b = base[i]; i <= maxLen; i++) {
-            final int nb = base[i + 1];
-            vec += nb - b;
-            b = nb;
-            limit[i] = vec - 1;
+        // Compute the last code for each length.
+        int vec = 0;
+        for (int len = minLen; len <= maxLen; len++) {
+            // increment by the number of length `len` codes
+            vec += base[len + 1] - base[len];
+            // vec is now the last code of length `len` + 1
+            limit[len] = vec - 1;
             vec <<= 1;
         }
-
-        for (int i = minLen + 1; i <= maxLen; i++) {
-            base[i] = (limit[i - 1] + 1 << 1) - base[i];
+        // Compute the bias between code value and table index.
+        // base[minLen] cannot be computed using this rule, since limit[minLen - 1] does not exist,
+        // but has already the correct value 0.
+        for (int len = minLen + 1; len <= maxLen; len++) {
+            base[len] = (limit[len - 1] + 1 << 1) - base[len];
         }
+    }
+
+    private static void makeMaps(final Data data) throws IOException {
+        final boolean[] inUse = data.inUse;
+        final byte[] seqToUnseq = data.seqToUnseq;
+
+        int nInUseShadow = 0;
+
+        for (int i = 0; i < 256; i++) {
+            if (inUse[i]) {
+                seqToUnseq[nInUseShadow++] = (byte) i;
+            }
+        }
+
+        data.inUseCount = nInUseShadow;
     }
 
     /**
      * Checks if the signature matches what is expected for a bzip2 file.
      *
-     * @param signature the bytes to check
-     * @param length    the number of bytes to check
-     * @return true, if this stream is a bzip2 compressed stream, false otherwise
+     * @param signature the bytes to check.
+     * @param length    the number of bytes to check.
+     * @return true, if this stream is a bzip2 compressed stream, false otherwise.
      * @since 1.1
      */
     public static boolean matches(final byte[] signature, final int length) {
         return length >= 3 && signature[0] == 'B' && signature[1] == 'Z' && signature[2] == 'h';
     }
+    static void recvDecodingTables(final BitInputStream bin, final Data dataShadow) throws IOException {
+        final boolean[] inUse = dataShadow.inUse;
+        final byte[] pos = dataShadow.recvDecodingTables_pos;
+        final byte[] selector = dataShadow.selector;
+        final byte[] selectorMtf = dataShadow.selectorMtf;
+
+        int inUse16 = 0;
+
+        /* Receive the mapping table */
+        for (int i = 0; i < 16; i++) {
+            if (bsGetBit(bin)) {
+                inUse16 |= 1 << i;
+            }
+        }
+
+        Arrays.fill(inUse, false);
+        for (int i = 0; i < 16; i++) {
+            if ((inUse16 & 1 << i) != 0) {
+                final int i16 = i << 4;
+                for (int j = 0; j < 16; j++) {
+                    if (bsGetBit(bin)) {
+                        inUse[i16 + j] = true;
+                    }
+                }
+            }
+        }
+
+        makeMaps(dataShadow);
+        final int alphaSize = dataShadow.inUseCount + 2;
+        /* Now the selectors */
+        final int nGroups = bsR(bin, 3);
+        final int selectors = bsR(bin, 15);
+        if (selectors < 0) {
+            throw new CompressorException("Corrupted input, nSelectors value negative");
+        }
+        checkBounds(alphaSize, MAX_ALPHA_SIZE + 1, "alphaSize");
+        checkBounds(nGroups, N_GROUPS + 1, "nGroups");
+
+        // Don't fail on nSelectors overflowing boundaries but discard the values in overflow
+        // See https://gnu.wildebeest.org/blog/mjw/2019/08/02/bzip2-and-the-cve-that-wasnt/
+        // and https://sourceware.org/ml/bzip2-devel/2019-q3/msg00007.html
+
+        for (int i = 0; i < selectors; i++) {
+            int j = 0;
+            while (bsGetBit(bin)) {
+                j++;
+            }
+            if (i < MAX_SELECTORS) {
+                selectorMtf[i] = (byte) j;
+            }
+        }
+        final int nSelectors = Math.min(selectors, MAX_SELECTORS);
+
+        /* Undo the MTF values for the selectors. */
+        for (int v = nGroups; --v >= 0;) {
+            pos[v] = (byte) v;
+        }
+
+        for (int i = 0; i < nSelectors; i++) {
+            int v = selectorMtf[i] & 0xff;
+            checkBounds(v, N_GROUPS, "selectorMtf");
+            final byte tmp = pos[v];
+            while (v > 0) {
+                // nearly all times v is zero, 4 in most other cases
+                pos[v] = pos[v - 1];
+                v--;
+            }
+            pos[0] = tmp;
+            selector[i] = tmp;
+        }
+
+        final char[][] len = dataShadow.temp_charArray2d;
+
+        /* Now the coding tables */
+        for (int t = 0; t < nGroups; t++) {
+            int curr = bsR(bin, 5);
+            final char[] len_t = len[t];
+            for (int i = 0; i < alphaSize; i++) {
+                while (bsGetBit(bin)) {
+                    curr += bsGetBit(bin) ? -1 : 1;
+                }
+                // Same condition as in bzip2
+                if (curr < 1 || curr > MAX_CODE_LEN) {
+                    throw new CompressorException(
+                            "Corrupted input, code length value out of range [%d, %d]: %d", 1, MAX_CODE_LEN, curr);
+                }
+                len_t[i] = (char) curr;
+            }
+        }
+
+        // finally create the Huffman tables
+        createHuffmanDecodingTables(alphaSize, nGroups, dataShadow);
+    }
+
+    // Variables used by setup* methods exclusively
 
     /**
      * Index of the last char in the block, so the block size == last + 1.
@@ -215,16 +369,13 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
      * Index in zptr[] of original string after sorting.
      */
     private int origPtr;
+
     /**
      * always: in the range 0 .. 9. The current block size is 100000 * this number.
      */
     private int blockSize100k;
-
-    // Variables used by setup* methods exclusively
-
     private boolean blockRandomised;
     private final CRC crc = new CRC();
-    private int nInUse;
     private BitInputStream bin;
     private final boolean decompressConcatenated;
     private int currentState = START_BLOCK_STATE;
@@ -237,8 +388,11 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
     private int su_i2;
     private int su_j2;
     private int su_rNToGo;
+
     private int su_rTPos;
+
     private int su_tPos;
+
     private char su_z;
 
     /**
@@ -250,9 +404,9 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
      * Constructs a new BZip2CompressorInputStream which decompresses bytes read from the specified stream. This doesn't support decompressing concatenated .bz2
      * files.
      *
-     * @param in the InputStream from which this object should be created
+     * @param in the InputStream from which this object should be created.
      * @throws IOException          if the stream content is malformed or an I/O error occurs.
-     * @throws NullPointerException if {@code in == null}
+     * @throws NullPointerException if {@code in == null}.
      */
     public BZip2CompressorInputStream(final InputStream in) throws IOException {
         this(in, false);
@@ -261,7 +415,7 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
     /**
      * Constructs a new BZip2CompressorInputStream which decompresses bytes read from the specified stream.
      *
-     * @param in                     the InputStream from which this object should be created
+     * @param in                     the InputStream from which this object should be created.
      * @param decompressConcatenated if true, decompress until the end of the input; if false, stop after the first .bz2 stream and leave the input position to
      *                               point to the next byte after the .bz2 stream
      *
@@ -292,40 +446,11 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
         this.currentState = EOF;
         this.data = null;
         if (this.storedCombinedCRC != this.computedCombinedCRC) {
-            throw new IOException("BZip2 CRC error");
+            throw new CompressorException("BZip2 CRC error");
         }
         // Look for the next .bz2 stream if decompressing
         // concatenated files.
         return !decompressConcatenated || !init(false);
-    }
-
-    /**
-     * Called by recvDecodingTables() exclusively.
-     */
-    private void createHuffmanDecodingTables(final int alphaSize, final int nGroups) throws IOException {
-        final Data dataShadow = this.data;
-        final char[][] len = dataShadow.temp_charArray2d;
-        final int[] minLens = dataShadow.minLens;
-        final int[][] limit = dataShadow.limit;
-        final int[][] base = dataShadow.base;
-        final int[][] perm = dataShadow.perm;
-
-        for (int t = 0; t < nGroups; t++) {
-            int minLen = 32;
-            int maxLen = 0;
-            final char[] len_t = len[t];
-            for (int i = alphaSize; --i >= 0;) {
-                final char lent = len_t[i];
-                if (lent > maxLen) {
-                    maxLen = lent;
-                }
-                if (lent < minLen) {
-                    minLen = lent;
-                }
-            }
-            hbCreateDecodeTables(limit[t], base[t], perm[t], len[t], minLen, maxLen, alphaSize);
-            minLens[t] = minLen;
-        }
     }
 
     private void endBlock() throws IOException {
@@ -336,7 +461,7 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
             // (repair feature, not yet documented, not tested)
             this.computedCombinedCRC = this.storedCombinedCRC << 1 | this.storedCombinedCRC >>> 31;
             this.computedCombinedCRC ^= this.storedBlockCRC;
-            throw new IOException("BZip2 CRC error");
+            throw new CompressorException("BZip2 CRC error");
         }
         this.computedCombinedCRC = this.computedCombinedCRC << 1 | this.computedCombinedCRC >>> 31;
         this.computedCombinedCRC ^= computedBlockCRC;
@@ -345,8 +470,8 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
     private void getAndMoveToFrontDecode() throws IOException {
         final BitInputStream bin = this.bin;
         this.origPtr = bsR(bin, 24);
-        recvDecodingTables();
         final Data dataShadow = this.data;
+        recvDecodingTables(bin, dataShadow);
         final byte[] ll8 = dataShadow.ll8;
         final int[] unzftab = dataShadow.unzftab;
         final byte[] selector = dataShadow.selector;
@@ -357,7 +482,6 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
         final int[][] base = dataShadow.base;
         final int[][] perm = dataShadow.perm;
         final int limitLast = this.blockSize100k * 100000;
-
         /*
          * Setting up the unzftab entries here is not strictly necessary, but it does save having to do it later in a separate pass, and so saves a block's
          * worth of cache misses.
@@ -366,23 +490,21 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
             yy[i] = (char) i;
             unzftab[i] = 0;
         }
-
         int groupNo = 0;
         int groupPos = G_SIZE - 1;
-        final int eob = this.nInUse + 1;
+        final int eob = dataShadow.inUseCount + 1;
         int nextSym = getAndMoveToFrontDecode0();
         int lastShadow = -1;
         int zt = selector[groupNo] & 0xff;
-        checkBounds(zt, N_GROUPS, "zt");
+        // All arrays have the same length
+        checkBounds(zt, base.length, "zt");
         int[] base_zt = base[zt];
         int[] limit_zt = limit[zt];
         int[] perm_zt = perm[zt];
         int minLens_zt = minLens[zt];
-
         while (nextSym != eob) {
             if (nextSym == RUNA || nextSym == RUNB) {
                 int s = -1;
-
                 for (int n = 1; true; n <<= 1) {
                     if (nextSym == RUNA) {
                         s += n;
@@ -391,12 +513,12 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
                     } else {
                         break;
                     }
-
                     if (groupPos == 0) {
                         groupPos = G_SIZE - 1;
-                        checkBounds(++groupNo, MAX_SELECTORS, "groupNo");
+                        checkBounds(++groupNo, selector.length, "groupNo");
                         zt = selector[groupNo] & 0xff;
-                        checkBounds(zt, N_GROUPS, "zt");
+                        // All arrays have the same length
+                        checkBounds(zt, base.length, "zt");
                         base_zt = base[zt];
                         limit_zt = limit[zt];
                         perm_zt = perm[zt];
@@ -404,44 +526,38 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
                     } else {
                         groupPos--;
                     }
-
                     int zn = minLens_zt;
-                    checkBounds(zn, MAX_ALPHA_SIZE, "zn");
+                    checkBounds(zn, limit_zt.length, "zn");
                     int zvec = bsR(bin, zn);
                     while (zvec > limit_zt[zn]) {
-                        checkBounds(++zn, MAX_ALPHA_SIZE, "zn");
+                        checkBounds(++zn, limit_zt.length, "zn");
                         zvec = zvec << 1 | bsR(bin, 1);
                     }
                     final int tmp = zvec - base_zt[zn];
-                    checkBounds(tmp, MAX_ALPHA_SIZE, "zvec");
+                    checkBounds(tmp, perm_zt.length, "zvec");
                     nextSym = perm_zt[tmp];
                 }
                 checkBounds(s, this.data.ll8.length, "s");
-
                 final int yy0 = yy[0];
-                checkBounds(yy0, 256, "yy");
+                checkBounds(yy0, seqToUnseq.length, "yy");
                 final byte ch = seqToUnseq[yy0];
                 unzftab[ch & 0xff] += s + 1;
-
                 final int from = ++lastShadow;
                 lastShadow += s;
                 checkBounds(lastShadow, this.data.ll8.length, "lastShadow");
                 Arrays.fill(ll8, from, lastShadow + 1, ch);
-
                 if (lastShadow >= limitLast) {
-                    throw new IOException("Block overrun while expanding RLE in MTF, " + lastShadow + " exceeds " + limitLast);
+                    throw new CompressorException("Block overrun while expanding RLE in MTF, %,d exceeds %,d", lastShadow, limitLast);
                 }
             } else {
                 if (++lastShadow >= limitLast) {
-                    throw new IOException("Block overrun in MTF, " + lastShadow + " exceeds " + limitLast);
+                    throw new CompressorException("Block overrun in MTF, %,d exceeds %,d", lastShadow, limitLast);
                 }
-                checkBounds(nextSym, 256 + 1, "nextSym");
-
+                checkBounds(nextSym - 1, yy.length, "nextSym");
                 final char tmp = yy[nextSym - 1];
-                checkBounds(tmp, 256, "yy");
+                checkBounds(tmp, seqToUnseq.length, "yy");
                 unzftab[seqToUnseq[tmp] & 0xff]++;
                 ll8[lastShadow] = seqToUnseq[tmp];
-
                 /*
                  * This loop is hammered during decompression, hence avoid native method call overhead of System.arraycopy for very small ranges to copy.
                  */
@@ -452,14 +568,13 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
                 } else {
                     System.arraycopy(yy, 0, yy, 1, nextSym - 1);
                 }
-
                 yy[0] = tmp;
-
                 if (groupPos == 0) {
                     groupPos = G_SIZE - 1;
-                    checkBounds(++groupNo, MAX_SELECTORS, "groupNo");
+                    checkBounds(++groupNo, selector.length, "groupNo");
                     zt = selector[groupNo] & 0xff;
-                    checkBounds(zt, N_GROUPS, "zt");
+                    // All arrays have the same length
+                    checkBounds(zt, base.length, "zt");
                     base_zt = base[zt];
                     limit_zt = limit[zt];
                     perm_zt = perm[zt];
@@ -467,38 +582,35 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
                 } else {
                     groupPos--;
                 }
-
                 int zn = minLens_zt;
-                checkBounds(zn, MAX_ALPHA_SIZE, "zn");
+                checkBounds(zn, limit_zt.length, "zn");
                 int zvec = bsR(bin, zn);
                 while (zvec > limit_zt[zn]) {
-                    checkBounds(++zn, MAX_ALPHA_SIZE, "zn");
+                    checkBounds(++zn, limit_zt.length, "zn");
                     zvec = zvec << 1 | bsR(bin, 1);
                 }
                 final int idx = zvec - base_zt[zn];
-                checkBounds(idx, MAX_ALPHA_SIZE, "zvec");
+                checkBounds(idx, perm_zt.length, "zvec");
                 nextSym = perm_zt[idx];
             }
         }
-
         this.last = lastShadow;
     }
 
     private int getAndMoveToFrontDecode0() throws IOException {
         final Data dataShadow = this.data;
         final int zt = dataShadow.selector[0] & 0xff;
-        checkBounds(zt, N_GROUPS, "zt");
+        checkBounds(zt, dataShadow.limit.length, "zt");
         final int[] limit_zt = dataShadow.limit[zt];
         int zn = dataShadow.minLens[zt];
-        checkBounds(zn, MAX_ALPHA_SIZE, "zn");
+        checkBounds(zn, limit_zt.length, "zn");
         int zvec = bsR(bin, zn);
         while (zvec > limit_zt[zn]) {
-            checkBounds(++zn, MAX_ALPHA_SIZE, "zn");
+            checkBounds(++zn, limit_zt.length, "zn");
             zvec = zvec << 1 | bsR(bin, 1);
         }
         final int tmp = zvec - dataShadow.base[zt][zn];
-        checkBounds(tmp, MAX_ALPHA_SIZE, "zvec");
-
+        checkBounds(tmp, dataShadow.perm[zt].length, "zvec");
         return dataShadow.perm[zt][tmp];
     }
 
@@ -511,34 +623,27 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
     }
 
     private boolean init(final boolean isFirstStream) throws IOException {
-        if (null == bin) {
-            throw new IOException("No InputStream");
+        if (bin == null) {
+            throw new CompressorException("No InputStream");
         }
-
         if (!isFirstStream) {
             bin.clearBitCache();
         }
-
         final int magic0 = readNextByte(this.bin);
         if (magic0 == -1 && !isFirstStream) {
             return false;
         }
         final int magic1 = readNextByte(this.bin);
         final int magic2 = readNextByte(this.bin);
-
         if (magic0 != 'B' || magic1 != 'Z' || magic2 != 'h') {
-            throw new IOException(isFirstStream ? "Stream is not in the BZip2 format" : "Unexpected data after a valid BZip2 stream");
+            throw new CompressorException(isFirstStream ? "Stream is not in the BZip2 format" : "Unexpected data after a valid BZip2 stream");
         }
-
         final int blockSize = readNextByte(this.bin);
         if (blockSize < '1' || blockSize > '9') {
-            throw new IOException("BZip2 block size is invalid");
+            throw new CompressorException("BZip2 block size is invalid");
         }
-
         this.blockSize100k = blockSize - '0';
-
         this.computedCombinedCRC = 0;
-
         return true;
     }
 
@@ -581,7 +686,7 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
                 magic5 != 0x59 // 'Y'
         ) {
             this.currentState = EOF;
-            throw new IOException("Bad block header");
+            throw new CompressorException("Bad block header");
         }
         this.storedBlockCRC = bsGetInt(bin);
         this.blockRandomised = bsR(bin, 1) == 1;
@@ -600,21 +705,6 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
         this.currentState = START_BLOCK_STATE;
     }
 
-    private void makeMaps() {
-        final boolean[] inUse = this.data.inUse;
-        final byte[] seqToUnseq = this.data.seqToUnseq;
-
-        int nInUseShadow = 0;
-
-        for (int i = 0; i < 256; i++) {
-            if (inUse[i]) {
-                seqToUnseq[nInUseShadow++] = (byte) i;
-            }
-        }
-
-        this.nInUse = nInUseShadow;
-    }
-
     @Override
     public int read() throws IOException {
         if (this.bin != null) {
@@ -622,30 +712,17 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
             count(r < 0 ? -1 : 1);
             return r;
         }
-        throw new IOException("Stream closed");
+        throw new CompressorException("Stream closed");
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.io.InputStream#read(byte[], int, int)
-     */
     @Override
     public int read(final byte[] dest, final int offs, final int len) throws IOException {
-        if (offs < 0) {
-            throw new IndexOutOfBoundsException("offs(" + offs + ") < 0.");
-        }
-        if (len < 0) {
-            throw new IndexOutOfBoundsException("len(" + len + ") < 0.");
-        }
-        if (offs + len > dest.length) {
-            throw new IndexOutOfBoundsException("offs(" + offs + ") + len(" + len + ") > dest.length(" + dest.length + ").");
-        }
-        if (this.bin == null) {
-            throw new IOException("Stream closed");
-        }
+        IOUtils.checkFromIndexSize(dest, offs, len);
         if (len == 0) {
             return 0;
+        }
+        if (this.bin == null) {
+            throw new CompressorException("Stream closed");
         }
 
         final int hi = offs + len;
@@ -695,97 +772,6 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
         return (int) b;
     }
 
-    private void recvDecodingTables() throws IOException {
-        final BitInputStream bin = this.bin;
-        final Data dataShadow = this.data;
-        final boolean[] inUse = dataShadow.inUse;
-        final byte[] pos = dataShadow.recvDecodingTables_pos;
-        final byte[] selector = dataShadow.selector;
-        final byte[] selectorMtf = dataShadow.selectorMtf;
-
-        int inUse16 = 0;
-
-        /* Receive the mapping table */
-        for (int i = 0; i < 16; i++) {
-            if (bsGetBit(bin)) {
-                inUse16 |= 1 << i;
-            }
-        }
-
-        Arrays.fill(inUse, false);
-        for (int i = 0; i < 16; i++) {
-            if ((inUse16 & 1 << i) != 0) {
-                final int i16 = i << 4;
-                for (int j = 0; j < 16; j++) {
-                    if (bsGetBit(bin)) {
-                        inUse[i16 + j] = true;
-                    }
-                }
-            }
-        }
-
-        makeMaps();
-        final int alphaSize = this.nInUse + 2;
-        /* Now the selectors */
-        final int nGroups = bsR(bin, 3);
-        final int selectors = bsR(bin, 15);
-        if (selectors < 0) {
-            throw new IOException("Corrupted input, nSelectors value negative");
-        }
-        checkBounds(alphaSize, MAX_ALPHA_SIZE + 1, "alphaSize");
-        checkBounds(nGroups, N_GROUPS + 1, "nGroups");
-
-        // Don't fail on nSelectors overflowing boundaries but discard the values in overflow
-        // See https://gnu.wildebeest.org/blog/mjw/2019/08/02/bzip2-and-the-cve-that-wasnt/
-        // and https://sourceware.org/ml/bzip2-devel/2019-q3/msg00007.html
-
-        for (int i = 0; i < selectors; i++) {
-            int j = 0;
-            while (bsGetBit(bin)) {
-                j++;
-            }
-            if (i < MAX_SELECTORS) {
-                selectorMtf[i] = (byte) j;
-            }
-        }
-        final int nSelectors = Math.min(selectors, MAX_SELECTORS);
-
-        /* Undo the MTF values for the selectors. */
-        for (int v = nGroups; --v >= 0;) {
-            pos[v] = (byte) v;
-        }
-
-        for (int i = 0; i < nSelectors; i++) {
-            int v = selectorMtf[i] & 0xff;
-            checkBounds(v, N_GROUPS, "selectorMtf");
-            final byte tmp = pos[v];
-            while (v > 0) {
-                // nearly all times v is zero, 4 in most other cases
-                pos[v] = pos[v - 1];
-                v--;
-            }
-            pos[0] = tmp;
-            selector[i] = tmp;
-        }
-
-        final char[][] len = dataShadow.temp_charArray2d;
-
-        /* Now the coding tables */
-        for (int t = 0; t < nGroups; t++) {
-            int curr = bsR(bin, 5);
-            final char[] len_t = len[t];
-            for (int i = 0; i < alphaSize; i++) {
-                while (bsGetBit(bin)) {
-                    curr += bsGetBit(bin) ? -1 : 1;
-                }
-                len_t[i] = (char) curr;
-            }
-        }
-
-        // finally create the Huffman tables
-        createHuffmanDecodingTables(alphaSize, nGroups);
-    }
-
     private int setupBlock() throws IOException {
         if (currentState == EOF || this.data == null) {
             return -1;
@@ -793,6 +779,7 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
 
         final int[] cftab = this.data.cftab;
         final int ttLen = this.last + 1;
+        // tt has size at least ttLen
         final int[] tt = this.data.initTT(ttLen);
         final byte[] ll8 = this.data.ll8;
         cftab[0] = 0;
@@ -810,7 +797,7 @@ public class BZip2CompressorInputStream extends CompressorInputStream implements
         }
 
         if (this.origPtr < 0 || this.origPtr >= tt.length) {
-            throw new IOException("Stream corrupted");
+            throw new CompressorException("Stream corrupted");
         }
 
         this.su_tPos = tt[this.origPtr];

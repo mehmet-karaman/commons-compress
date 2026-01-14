@@ -44,22 +44,21 @@ final class NioZipEncoding implements ZipEncoding, CharsetAccessor {
     private static final char[] HEX_CHARS = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
     private static ByteBuffer encodeFully(final CharsetEncoder enc, final CharBuffer cb, final ByteBuffer out) {
-        ByteBuffer o = out;
+        ByteBuffer buffer = out;
         while (cb.hasRemaining()) {
-            final CoderResult result = enc.encode(cb, o, false);
+            final CoderResult result = enc.encode(cb, buffer, false);
             if (result.isOverflow()) {
                 final int increment = estimateIncrementalEncodingSize(enc, cb.remaining());
-                o = ZipEncodingHelper.growBufferBy(o, increment);
+                buffer = ZipEncodingHelper.growBufferBy(buffer, increment);
             }
         }
-        return o;
+        return buffer;
     }
 
     private static CharBuffer encodeSurrogate(final CharBuffer cb, final char c) {
         cb.position(0).limit(6);
         cb.put('%');
         cb.put('U');
-
         cb.put(HEX_CHARS[c >> 12 & 0x0f]);
         cb.put(HEX_CHARS[c >> 8 & 0x0f]);
         cb.put(HEX_CHARS[c >> 4 & 0x0f]);
@@ -69,10 +68,10 @@ final class NioZipEncoding implements ZipEncoding, CharsetAccessor {
     }
 
     /**
-     * Estimate the size needed for remaining characters
+     * Estimate the size needed for remaining characters.
      *
-     * @param enc       encoder to use for estimates
-     * @param charCount number of characters remaining
+     * @param enc       encoder to use for estimates.
+     * @param charCount number of characters remaining.
      * @return estimated size in bytes.
      */
     private static int estimateIncrementalEncodingSize(final CharsetEncoder enc, final int charCount) {
@@ -86,8 +85,8 @@ final class NioZipEncoding implements ZipEncoding, CharsetAccessor {
      * BOM for UTF-16, at the expense of a couple of extra bytes for UTF-8 encoded ASCII.
      * </p>
      *
-     * @param enc        encoder to use for estimates
-     * @param charChount number of characters in string
+     * @param enc        encoder to use for estimates.
+     * @param charChount number of characters in string.
      * @return estimated size in bytes.
      */
     private static int estimateInitialBufferSize(final CharsetEncoder enc, final int charChount) {
@@ -104,11 +103,10 @@ final class NioZipEncoding implements ZipEncoding, CharsetAccessor {
      * Constructs an NioZipEncoding using the given charset.
      *
      * @param charset        The character set to use.
-     * @param useReplacement should invalid characters be replaced, or reported.
      */
-    NioZipEncoding(final Charset charset, final boolean useReplacement) {
+    NioZipEncoding(final Charset charset) {
         this.charset = charset;
-        this.useReplacement = useReplacement;
+        this.useReplacement = ZipEncodingHelper.isUTF8(charset);
     }
 
     /**
@@ -133,19 +131,14 @@ final class NioZipEncoding implements ZipEncoding, CharsetAccessor {
     @Override
     public ByteBuffer encode(final String name) {
         final CharsetEncoder enc = newEncoder();
-
         final CharBuffer cb = CharBuffer.wrap(name);
         CharBuffer tmp = null;
         ByteBuffer out = ByteBuffer.allocate(estimateInitialBufferSize(enc, cb.remaining()));
-
         while (cb.hasRemaining()) {
             final CoderResult res = enc.encode(cb, out, false);
-
             if (res.isUnmappable() || res.isMalformed()) {
-
                 // write the unmappable characters in utf-16
                 // pseudo-URL encoding style to ByteBuffer.
-
                 final int spaceForSurrogate = estimateIncrementalEncodingSize(enc, 6 * res.length());
                 if (spaceForSurrogate > out.remaining()) {
                     // if the destination buffer isn't oversized, assume that the presence of one
@@ -164,11 +157,9 @@ final class NioZipEncoding implements ZipEncoding, CharsetAccessor {
                 for (int i = 0; i < res.length(); ++i) {
                     out = encodeFully(enc, encodeSurrogate(tmp, cb.get()), out);
                 }
-
             } else if (res.isOverflow()) {
                 final int increment = estimateIncrementalEncodingSize(enc, cb.remaining());
                 out = ZipEncodingHelper.growBufferBy(out, increment);
-
             } else if (res.isUnderflow() || res.isError()) {
                 break;
             }
@@ -176,7 +167,6 @@ final class NioZipEncoding implements ZipEncoding, CharsetAccessor {
         // tell the encoder we are done
         enc.encode(cb, out, true);
         // may have caused underflow, but that's been ignored traditionally
-
         out.limit(out.position());
         out.rewind();
         return out;

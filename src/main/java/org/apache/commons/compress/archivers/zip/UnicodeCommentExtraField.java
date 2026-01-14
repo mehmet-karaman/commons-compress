@@ -31,26 +31,32 @@ package org.apache.commons.compress.archivers.zip;
  */
 public class UnicodeCommentExtraField extends AbstractUnicodeExtraField {
 
+    /**
+     * Field ID.
+     */
     public static final ZipShort UCOM_ID = new ZipShort(0x6375);
 
+    /**
+     * Constructs a new instance.
+     */
     public UnicodeCommentExtraField() {
     }
 
     /**
-     * Assemble as unicode comment extension from the comment given as text as well as the bytes actually written to the archive.
+     * Constructs a new instance as Unicode comment extension from the comment given as text as well as the bytes actually written to the archive.
      *
-     * @param comment The file comment
-     * @param bytes   the bytes actually written to the archive
+     * @param comment The file comment.
+     * @param bytes   the bytes actually written to the archive.
      */
     public UnicodeCommentExtraField(final String comment, final byte[] bytes) {
         super(comment, bytes);
     }
 
     /**
-     * Assemble as unicode comment extension from the name given as text as well as the encoded bytes actually written to the archive.
+     * Assemble as Unicode comment extension from the name given as text as well as the encoded bytes actually written to the archive.
      *
-     * @param text  The file name
-     * @param bytes the bytes actually written to the archive
+     * @param text  The file name.
+     * @param bytes the bytes actually written to the archive.
      * @param off   The offset of the encoded comment in {@code bytes}.
      * @param len   The length of the encoded comment or comment in {@code bytes}.
      */

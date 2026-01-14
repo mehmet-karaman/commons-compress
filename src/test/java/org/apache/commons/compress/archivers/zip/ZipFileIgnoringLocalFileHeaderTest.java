@@ -25,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Enumeration;
 
@@ -33,28 +32,22 @@ import org.apache.commons.compress.AbstractTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class ZipFileIgnoringLocalFileHeaderTest {
+class ZipFileIgnoringLocalFileHeaderTest {
 
     private static ZipFile openZipWithoutLocalFileHeader(final String fileName) throws IOException {
         // @formatter:off
         return ZipFile.builder()
-                .setFile(AbstractTest.getFile(fileName))
-                .setCharset(StandardCharsets.UTF_8.name())
-                .setUseUnicodeExtraFields(true)
+                .setURI(AbstractTest.getURI(fileName))
                 .setIgnoreLocalFileHeader(true)
                 .get();
         // @formatter:on
-    }
-
-    private static ZipFile openZipWithoutLocalFileHeaderDeprecated(final String fileName) throws IOException {
-        return new ZipFile(AbstractTest.getFile(fileName), StandardCharsets.UTF_8.name(), true, true);
     }
 
     @TempDir
     private File dir;
 
     @Test
-    public void testDuplicateEntry() throws Exception {
+    void testDuplicateEntry() throws Exception {
         try (ZipFile zf = openZipWithoutLocalFileHeader("COMPRESS-227.zip")) {
             int numberOfEntries = 0;
             for (final ZipArchiveEntry entry : zf.getEntries("test1.txt")) {
@@ -68,7 +61,7 @@ public class ZipFileIgnoringLocalFileHeaderTest {
     }
 
     @Test
-    public void testGetEntryWorks() throws IOException {
+    void testGetEntryWorks() throws IOException {
         try (ZipFile zf = openZipWithoutLocalFileHeader("bla.zip")) {
             final ZipArchiveEntry ze = zf.getEntry("test1.xml");
             assertEquals(610, ze.getSize());
@@ -76,7 +69,7 @@ public class ZipFileIgnoringLocalFileHeaderTest {
     }
 
     @Test
-    public void testGetRawInputStreamReturnsNotNull() throws IOException {
+    void testGetRawInputStreamReturnsNotNull() throws IOException {
         try (ZipFile zf = openZipWithoutLocalFileHeader("bla.zip")) {
             final ZipArchiveEntry ze = zf.getEntry("test1.xml");
             try (InputStream rawInputStream = zf.getRawInputStream(ze)) {
@@ -86,7 +79,7 @@ public class ZipFileIgnoringLocalFileHeaderTest {
     }
 
     @Test
-    public void testPhysicalOrder() throws IOException {
+    void testPhysicalOrder() throws IOException {
         try (ZipFile zf = openZipWithoutLocalFileHeader("ordertest.zip")) {
             final Enumeration<ZipArchiveEntry> e = zf.getEntriesInPhysicalOrder();
             ZipArchiveEntry ze;
@@ -103,8 +96,8 @@ public class ZipFileIgnoringLocalFileHeaderTest {
      * @throws Exception
      */
     @Test
-    public void testZipUnarchive() throws Exception {
-        try (ZipFile zipFile = openZipWithoutLocalFileHeaderDeprecated("bla.zip")) {
+    void testZipUnarchive() throws Exception {
+        try (ZipFile zipFile = openZipWithoutLocalFileHeader("bla.zip")) {
             zipFile.stream().forEach(entry -> {
                 try (InputStream inputStream = zipFile.getInputStream(entry)) {
                     Files.copy(inputStream, new File(dir, entry.getName()).toPath());

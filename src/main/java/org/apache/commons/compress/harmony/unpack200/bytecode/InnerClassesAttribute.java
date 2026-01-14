@@ -24,7 +24,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Inner classes class file attribute
+ * Inner classes class file attribute.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class InnerClassesAttribute extends Attribute {
 
@@ -85,6 +87,11 @@ public class InnerClassesAttribute extends Attribute {
 
     private static CPUTF8 attributeName;
 
+    /**
+     * Sets the attribute name.
+     *
+     * @param cpUTF8Value the attribute name.
+     */
     public static void setAttributeName(final CPUTF8 cpUTF8Value) {
         attributeName = cpUTF8Value;
     }
@@ -92,11 +99,24 @@ public class InnerClassesAttribute extends Attribute {
     private final List<InnerClassesEntry> innerClasses = new ArrayList<>();
     private final List<ConstantPoolEntry> nestedClassFileEntries = new ArrayList<>();
 
+    /**
+     * Constructs a new InnerClassesAttribute.
+     *
+     * @param name the attribute name.
+     */
     public InnerClassesAttribute(final String name) {
         super(attributeName);
         nestedClassFileEntries.add(getAttributeName());
     }
 
+    /**
+     * Adds an inner classes entry.
+     *
+     * @param innerClass the inner class.
+     * @param outerClass the outer class.
+     * @param innerName the inner name.
+     * @param flags the flags.
+     */
     public void addInnerClassesEntry(final CPClass innerClass, final CPClass outerClass, final CPUTF8 innerName, final int flags) {
         if (innerClass != null) {
             nestedClassFileEntries.add(innerClass);

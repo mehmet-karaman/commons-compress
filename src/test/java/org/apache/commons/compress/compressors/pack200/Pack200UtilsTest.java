@@ -58,7 +58,7 @@ public final class Pack200UtilsTest extends AbstractTest {
      * @throws Exception Test failure.
      */
     @Test
-    public void testCompress675() throws Exception {
+    void testCompress675() throws Exception {
         // put 2 pack files inside an archive and then try to unpack them.
         final File pack = getFile("bla.pack");
         final File archiveFile = createTempFile();
@@ -90,9 +90,7 @@ public final class Pack200UtilsTest extends AbstractTest {
         //
         // If you use a zip archive instead of a tar archive you
         // get a different number of bytes read, but still not the expected
-        try (InputStream is = new FileInputStream(archiveFile);
-                // Files.newInputStream(archiveFile.toPath());
-                TarArchiveInputStream in = new TarArchiveInputStream(is)) {
+        try (TarArchiveInputStream in = TarArchiveInputStream.builder().setFile(archiveFile).get()) {
             ArchiveEntry entry = in.getNextEntry();
             int entries = 0;
             long count = 0;
@@ -111,7 +109,7 @@ public final class Pack200UtilsTest extends AbstractTest {
     }
 
     @Test
-    public void testNormalize() throws Throwable {
+    void testNormalize() throws Throwable {
         final File input = getFile("bla.jar");
         final File output = createTempFile();
         Pack200Utils.normalize(input, output, new HashMap<>());
@@ -130,7 +128,7 @@ public final class Pack200UtilsTest extends AbstractTest {
     }
 
     @Test
-    public void testNormalizeInPlace() throws Throwable {
+    void testNormalizeInPlace() throws Throwable {
         final File input = getFile("bla.jar");
         final File output = createTempFile();
         try (InputStream is = Files.newInputStream(input.toPath())) {

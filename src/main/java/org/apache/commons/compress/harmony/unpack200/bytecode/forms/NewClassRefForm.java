@@ -28,9 +28,18 @@ import org.apache.commons.compress.harmony.unpack200.bytecode.OperandManager;
 /**
  * This class is an extension of the ClassRefForm. It has two purposes: 1. To keep track of the last type used in a new() instruction in the current class. 2.
  * To allow the sender to create instances of either a specified class (which then becomes the new class) or the last used new class.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class NewClassRefForm extends ClassRefForm {
 
+    /**
+     * Constructs a new instance with the specified opcode, name, operandType and rewrite.
+     *
+     * @param opcode  index corresponding to the opcode's value.
+     * @param name    String printable name of the opcode.
+     * @param rewrite Operand positions (which will later be rewritten in ByteCodes) are indicated by -1.
+     */
     public NewClassRefForm(final int opcode, final String name, final int[] rewrite) {
         super(opcode, name, rewrite);
     }
@@ -42,7 +51,7 @@ public class NewClassRefForm extends ClassRefForm {
      * .compress.harmony.unpack200.bytecode.ByteCode, org.apache.commons.compress.harmony.unpack200.bytecode.OperandManager)
      */
     @Override
-    public void setByteCodeOperands(final ByteCode byteCode, final OperandManager operandManager, final int codeLength) {
+    public void setByteCodeOperands(final ByteCode byteCode, final OperandManager operandManager, final int codeLength) throws Pack200Exception {
         final int offset = getOffset(operandManager);
         if (offset == 0) {
             // Use current class

@@ -26,7 +26,7 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.zip.ZipException;
 
-import org.apache.commons.compress.utils.ByteUtils;
+import org.apache.commons.lang3.ArrayUtils;
 
 /**
  * An extra field that stores Unix UID/GID data (owner &amp; group ownership) for a given ZIP entry. We're using the field definition given in Info-Zip's source
@@ -92,7 +92,7 @@ public class X7875_NewUnix implements ZipExtraField, Cloneable, Serializable {
          *
          * 2.) Fundamentally, ZIP files are about shrinking things, so let's save a few bytes per entry while we can.
          *
-         * 3.) Of all the people creating ZIP files using commons- compress, how many care about Unix UID/GID attributes of the files they store? (for example,
+         * 3.) Of all the people creating ZIP files using commons-compress, how many care about Unix UID/GID attributes of the files they store? (for example,
          * I am probably thinking way too hard about this and no one cares!)
          *
          * 4.) InfoZip's tool, even though it carefully stores every UID/GID for every file zipped on a Unix machine (by default) currently appears unable to
@@ -113,14 +113,24 @@ public class X7875_NewUnix implements ZipExtraField, Cloneable, Serializable {
         return trimmedArray;
     }
 
-    private int version = 1; // always '1' according to current info-zip spec.
-    // BigInteger helps us with little-endian / big-endian conversions.
-    // (thanks to BigInteger.toByteArray() and a reverse() method we created).
-    // Also, the spec theoretically allows UID/GID up to 255 bytes long!
-    //
-    // NOTE: equals() and hashCode() currently assume these can never be null.
+    /**
+     * The version number, always {@code 1}, according to current info-zip spec.
+     */
+    private int version = 1;
+
+
+    /**
+     * The user ID.
+     * <p>
+     * BigInteger helps us with little-endian / big-endian conversions. (thanks to BigInteger.toByteArray() and a reverse() method we created). Also, the spec
+     * theoretically allows UID/GID up to 255 bytes long! NOTE: equals() and hashCode() currently assume these can never be null.
+     * </p>
+     */
     private BigInteger uid;
 
+    /**
+     * The group ID.
+     */
     private BigInteger gid;
 
     /**
@@ -148,17 +158,17 @@ public class X7875_NewUnix implements ZipExtraField, Cloneable, Serializable {
     /**
      * The actual data to put into central directory data - without Header-ID or length specifier.
      *
-     * @return get the data
+     * @return get the data.
      */
     @Override
     public byte[] getCentralDirectoryData() {
-        return ByteUtils.EMPTY_BYTE_ARRAY;
+        return ArrayUtils.EMPTY_BYTE_ARRAY;
     }
 
     /**
      * Length of the extra field in the central directory data - without Header-ID or length specifier.
      *
-     * @return a {@code ZipShort} for the length of the data of this extra field
+     * @return a {@code ZipShort} for the length of the data of this extra field.
      */
     @Override
     public ZipShort getCentralDirectoryLength() {
@@ -178,7 +188,7 @@ public class X7875_NewUnix implements ZipExtraField, Cloneable, Serializable {
     /**
      * The Header-ID.
      *
-     * @return the value for the header id for this extrafield
+     * @return the value for the header id for this extrafield.
      */
     @Override
     public ZipShort getHeaderId() {
@@ -188,28 +198,25 @@ public class X7875_NewUnix implements ZipExtraField, Cloneable, Serializable {
     /**
      * The actual data to put into local file data - without Header-ID or length specifier.
      *
-     * @return get the data
+     * @return get the data.
      */
     @Override
     public byte[] getLocalFileDataData() {
         byte[] uidBytes = uid.toByteArray();
         byte[] gidBytes = gid.toByteArray();
-
         // BigInteger might prepend a leading-zero to force a positive representation
         // (for example, so that the sign-bit is set to zero). We need to remove that
         // before sending the number over the wire.
         uidBytes = trimLeadingZeroesForceMinLength(uidBytes);
-        final int uidBytesLen = uidBytes != null ? uidBytes.length : 0;
+        final int uidBytesLen = ArrayUtils.getLength(uidBytes);
         gidBytes = trimLeadingZeroesForceMinLength(gidBytes);
-        final int gidBytesLen = gidBytes != null ? gidBytes.length : 0;
-
+        final int gidBytesLen = ArrayUtils.getLength(gidBytes);
         // Couldn't bring myself to just call getLocalFileDataLength() when we've
         // already got the arrays right here. Yeah, yeah, I know, premature
         // optimization is the root of all...
         //
         // The 3 comes from: version=1 + uidsize=1 + gidsize=1
         final byte[] data = new byte[3 + uidBytesLen + gidBytesLen];
-
         // reverse() switches byte array from big-endian to little-endian.
         if (uidBytes != null) {
             reverse(uidBytes);
@@ -217,7 +224,6 @@ public class X7875_NewUnix implements ZipExtraField, Cloneable, Serializable {
         if (gidBytes != null) {
             reverse(gidBytes);
         }
-
         int pos = 0;
         data[pos++] = unsignedIntToSignedByte(version);
         data[pos++] = unsignedIntToSignedByte(uidBytesLen);
@@ -235,15 +241,14 @@ public class X7875_NewUnix implements ZipExtraField, Cloneable, Serializable {
     /**
      * Length of the extra field in the local file data - without Header-ID or length specifier.
      *
-     * @return a {@code ZipShort} for the length of the data of this extra field
+     * @return a {@code ZipShort} for the length of the data of this extra field.
      */
     @Override
     public ZipShort getLocalFileDataLength() {
         byte[] b = trimLeadingZeroesForceMinLength(uid.toByteArray());
-        final int uidSize = b == null ? 0 : b.length;
+        final int uidSize = ArrayUtils.getLength(b);
         b = trimLeadingZeroesForceMinLength(gid.toByteArray());
-        final int gidSize = b == null ? 0 : b.length;
-
+        final int gidSize = ArrayUtils.getLength(b);
         // The 3 comes from: version=1 + uidsize=1 + gidsize=1
         return new ZipShort(3 + uidSize + gidSize);
     }
@@ -279,10 +284,10 @@ public class X7875_NewUnix implements ZipExtraField, Cloneable, Serializable {
     /**
      * Populate data from this array as if it was in local file data.
      *
-     * @param data   an array of bytes
-     * @param offset the start offset
-     * @param length the number of bytes in the array from offset
-     * @throws java.util.zip.ZipException on error
+     * @param data   an array of bytes.
+     * @param offset the start offset.
+     * @param length the number of bytes in the array from offset.
+     * @throws java.util.zip.ZipException on error.
      */
     @Override
     public void parseFromLocalFileData(final byte[] data, int offset, final int length) throws ZipException {

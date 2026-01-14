@@ -24,6 +24,7 @@ import java.io.OutputStream;
 
 import org.apache.commons.compress.compressors.CompressorOutputStream;
 import org.apache.commons.compress.utils.ByteUtils;
+import org.apache.commons.io.IOUtils;
 
 /**
  * CompressorOutputStream for the LZ4 frame format.
@@ -39,20 +40,20 @@ import org.apache.commons.compress.utils.ByteUtils;
 public class FramedLZ4CompressorOutputStream extends CompressorOutputStream<OutputStream> {
 
     /**
-     * The block sizes supported by the format.
+     * Enumerates the block sizes supported by the format.
      */
     public enum BlockSize {
 
-        /** Block size of 64K */
+        /** Block size of 64K. */
         K64(64 * 1024, 4),
 
-        /** Block size of 256K */
+        /** Block size of 256K. */
         K256(256 * 1024, 5),
 
-        /** Block size of 1M */
+        /** Block size of 1M. */
         M1(1024 * 1024, 6),
 
-        /** Block size of 4M */
+        /** Block size of 4M. */
         M4(4096 * 1024, 7);
 
         private final int size;
@@ -106,8 +107,8 @@ public class FramedLZ4CompressorOutputStream extends CompressorOutputStream<Outp
          * Sets up custom parameters for the LZ4 stream.
          *
          * @param blockSize           the size of a single block.
-         * @param withContentChecksum whether to write a content checksum
-         * @param withBlockChecksum   whether to write a block checksum. Note that block checksums are not supported by the lz4 command line utility
+         * @param withContentChecksum whether to write a content checksum.
+         * @param withBlockChecksum   whether to write a block checksum. Note that block checksums are not supported by the lz4 command line utility.
          * @param withBlockDependency whether a block may depend on the content of a previous block. Enabling this may improve compression ratio but makes it
          *                            impossible to decompress the output in parallel.
          */
@@ -119,8 +120,8 @@ public class FramedLZ4CompressorOutputStream extends CompressorOutputStream<Outp
          * Sets up custom parameters for the LZ4 stream.
          *
          * @param blockSize           the size of a single block.
-         * @param withContentChecksum whether to write a content checksum
-         * @param withBlockChecksum   whether to write a block checksum. Note that block checksums are not supported by the lz4 command line utility
+         * @param withContentChecksum whether to write a content checksum.
+         * @param withBlockChecksum   whether to write a block checksum. Note that block checksums are not supported by the lz4 command line utility.
          * @param withBlockDependency whether a block may depend on the content of a previous block. Enabling this may improve compression ratio but makes it
          *                            impossible to decompress the output in parallel.
          * @param lz77params          parameters used to fine-tune compression, in particular to balance compression ratio vs compression speed.
@@ -172,8 +173,8 @@ public class FramedLZ4CompressorOutputStream extends CompressorOutputStream<Outp
     /**
      * Constructs a new output stream that compresses data using the LZ4 frame format using the default block size of 4MB.
      *
-     * @param out the OutputStream to which to write the compressed data
-     * @throws IOException if writing the signature fails
+     * @param out the OutputStream to which to write the compressed data.
+     * @throws IOException if writing the signature fails.
      */
     public FramedLZ4CompressorOutputStream(final OutputStream out) throws IOException {
         this(out, Parameters.DEFAULT);
@@ -182,9 +183,9 @@ public class FramedLZ4CompressorOutputStream extends CompressorOutputStream<Outp
     /**
      * Constructs a new output stream that compresses data using the LZ4 frame format using the given block size.
      *
-     * @param out    the OutputStream to which to write the compressed data
-     * @param params the parameters to use
-     * @throws IOException if writing the signature fails
+     * @param out    the OutputStream to which to write the compressed data.
+     * @param params the parameters to use.
+     * @throws IOException if writing the signature fails.
      */
     public FramedLZ4CompressorOutputStream(final OutputStream out, final Parameters params) throws IOException {
         super(out);
@@ -222,7 +223,7 @@ public class FramedLZ4CompressorOutputStream extends CompressorOutputStream<Outp
     /**
      * Compresses all blockDataRemaining data and writes it to the stream, doesn't close the underlying stream.
      *
-     * @throws IOException if an error occurs
+     * @throws IOException if an error occurs.
      */
     @Override
     public void finish() throws IOException {
@@ -271,6 +272,7 @@ public class FramedLZ4CompressorOutputStream extends CompressorOutputStream<Outp
 
     @Override
     public void write(final byte[] data, int off, int len) throws IOException {
+        IOUtils.checkFromIndexSize(data, off, len);
         if (params.withContentChecksum) {
             contentHash.update(data, off, len);
         }

@@ -31,11 +31,14 @@ import java.util.Set;
 
 import org.apache.commons.compress.harmony.pack200.AttributeDefinitionBands.AttributeDefinition;
 import org.apache.commons.compress.harmony.pack200.IcBands.IcTuple;
+import org.apache.commons.compress.harmony.pack200.Segment.SegmentMethodVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
 
 /**
  * Class bands (corresponds to the {@code class_bands} set of bands in the pack200 specification)
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class ClassBands extends BandSet {
 
@@ -76,6 +79,12 @@ public class ClassBands extends BandSet {
 
     private static final long[] EMPTY_LONG_ARRAY = {};
 
+    /**
+     * Counts arguments in a descriptor.
+     *
+     * @param descriptor the descriptor to parse.
+     * @return the argument count.
+     */
     protected static int countArgs(final String descriptor) {
         final int bra = descriptor.indexOf('(');
         final int ket = descriptor.indexOf(')');
@@ -211,6 +220,15 @@ public class ClassBands extends BandSet {
 
     private List<CPUTF8> classInnerClassesNameRUN;
 
+    /**
+     * Constructs a new ClassBands.
+     *
+     * @param segment the segment.
+     * @param numClasses the number of classes.
+     * @param effort the packing effort.
+     * @param stripDebug whether to strip debug information.
+     * @throws IOException if an I/O error occurs.
+     */
     public ClassBands(final Segment segment, final int numClasses, final int effort, final boolean stripDebug) throws IOException {
         super(effort, segment.getSegmentHeader());
         this.stripDebug = stripDebug;
@@ -248,6 +266,20 @@ public class ClassBands extends BandSet {
         createNewAttributeBands();
     }
 
+    /**
+     * Adds an annotation to a class, field, or method.
+     *
+     * @param context the context (class, field, or method).
+     * @param desc the annotation descriptor.
+     * @param visible whether the annotation is visible at runtime.
+     * @param nameRU the name list.
+     * @param tags the tag list.
+     * @param values the value list.
+     * @param caseArrayN the case array.
+     * @param nestTypeRS the nested type list.
+     * @param nestNameRU the nested name list.
+     * @param nestPairN the nested pair list.
+     */
     public void addAnnotation(final int context, final String desc, final boolean visible, final List<String> nameRU, final List<String> tags,
             final List<Object> values, final List<Integer> caseArrayN, final List<String> nestTypeRS, final List<String> nestNameRU,
             final List<Integer> nestPairN) {
@@ -316,6 +348,17 @@ public class ClassBands extends BandSet {
         }
     }
 
+    /**
+     * Adds an annotation default value.
+     *
+     * @param nameRU the name list.
+     * @param tags the tag list.
+     * @param values the value list.
+     * @param caseArrayN the case array.
+     * @param nestTypeRS the nested type list.
+     * @param nestNameRU the nested name list.
+     * @param nestPairN the nested pair list.
+     */
     public void addAnnotationDefault(final List<String> nameRU, final List<String> tags, final List<Object> values, final List<Integer> caseArrayN,
             final List<String> nestTypeRS, final List<String> nestNameRU, final List<Integer> nestPairN) {
         method_AD_bands.addAnnotation(null, nameRU, tags, values, caseArrayN, nestTypeRS, nestNameRU, nestPairN);
@@ -323,6 +366,16 @@ public class ClassBands extends BandSet {
         tempMethodFlags.add(Long.valueOf(flag.longValue() | 1 << 25));
     }
 
+    /**
+     * Adds a class.
+     *
+     * @param major the major version.
+     * @param flags the class flags.
+     * @param className the class name.
+     * @param signature the signature.
+     * @param superName the super class name.
+     * @param interfaces the implemented interfaces.
+     */
     public void addClass(final int major, final int flags, final String className, final String signature, final String superName, final String[] interfaces) {
         class_this[index] = cpBands.getCPClass(className);
         class_super[index] = cpBands.getCPClass(superName);
@@ -345,6 +398,11 @@ public class ClassBands extends BandSet {
         }
     }
 
+    /**
+     * Adds a new class attribute.
+     *
+     * @param attribute the new class attribute.
+     */
     public void addClassAttribute(final NewAttribute attribute) {
         // TODO: backwards calls
         final String attributeName = attribute.type;
@@ -359,6 +417,9 @@ public class ClassBands extends BandSet {
         throw new IllegalArgumentException("No suitable definition for " + attributeName);
     }
 
+    /**
+     * Adds code attributes.
+     */
     public void addCode() {
         codeHandlerCount.add(0);
         if (!stripDebug) {
@@ -367,6 +428,11 @@ public class ClassBands extends BandSet {
         }
     }
 
+    /**
+     * Adds a new code attribute.
+     *
+     * @param attribute the new code attribute.
+     */
     public void addCodeAttribute(final NewAttribute attribute) {
         final String attributeName = attribute.type;
         for (final NewAttributeBands bands : codeAttributeBands) {
@@ -381,12 +447,28 @@ public class ClassBands extends BandSet {
         throw new IllegalArgumentException("No suitable definition for " + attributeName);
     }
 
-    public void addEnclosingMethod(final String owner, final String name, final String desc) {
+    /**
+     * Adds an enclosing method.
+     *
+     * @param ownerClassName a fully-qualifed class name.
+     * @param name a method name.
+     * @param signature a signature in the constant pool.
+     */
+    public void addEnclosingMethod(final String ownerClassName, final String name, final String signature) {
         class_flags[index] |= 1 << 18;
-        classEnclosingMethodClass.add(cpBands.getCPClass(owner));
-        classEnclosingMethodDesc.add(name == null ? null : cpBands.getCPNameAndType(name, desc));
+        classEnclosingMethodClass.add(cpBands.getCPClass(ownerClassName));
+        classEnclosingMethodDesc.add(name == null ? null : cpBands.getCPNameAndType(name, signature));
     }
 
+    /**
+     * Adds a field.
+     *
+     * @param flags the field flags.
+     * @param name the field name.
+     * @param desc the field descriptor.
+     * @param signature the field signature.
+     * @param value the constant value.
+     */
     public void addField(int flags, final String name, final String desc, final String signature, final Object value) {
         flags &= 0xFFFF;
         tempFieldDesc.add(cpBands.getCPNameAndType(name, desc));
@@ -409,6 +491,11 @@ public class ClassBands extends BandSet {
         tempFieldFlags.add(Long.valueOf(flags));
     }
 
+    /**
+     * Adds a new field attribute.
+     *
+     * @param attribute the new field attribute.
+     */
     public void addFieldAttribute(final NewAttribute attribute) {
         final String attributeName = attribute.type;
         for (final NewAttributeBands bands : fieldAttributeBands) {
@@ -423,6 +510,14 @@ public class ClassBands extends BandSet {
         throw new IllegalArgumentException("No suitable definition for " + attributeName);
     }
 
+    /**
+     * Adds an exception handler.
+     *
+     * @param start the start label.
+     * @param end the end label.
+     * @param handler the handler label.
+     * @param type the exception type.
+     */
     public void addHandler(final Label start, final Label end, final Label handler, final String type) {
         final int handlers = codeHandlerCount.remove(codeHandlerCount.size() - 1);
         codeHandlerCount.add(handlers + 1);
@@ -432,6 +527,12 @@ public class ClassBands extends BandSet {
         codeHandlerClass.add(type == null ? null : cpBands.getCPClass(type));
     }
 
+    /**
+     * Adds a line number entry.
+     *
+     * @param line the line number.
+     * @param start the start label.
+     */
     public void addLineNumber(final int line, final Label start) {
         final Long latestCodeFlag = codeFlags.get(codeFlags.size() - 1);
         if ((latestCodeFlag.intValue() & 1 << 1) == 0) {
@@ -445,6 +546,16 @@ public class ClassBands extends BandSet {
         codeLineNumberTableBciP.add(start);
     }
 
+    /**
+     * Adds a local variable.
+     *
+     * @param name the variable name.
+     * @param desc the variable descriptor.
+     * @param signature the variable signature.
+     * @param start the start label.
+     * @param end the end label.
+     * @param indx the variable index.
+     */
     public void addLocalVariable(final String name, final String desc, final String signature, final Label start, final Label end, final int indx) {
         if (signature != null) { // LocalVariableTypeTable attribute
             final Long latestCodeFlag = codeFlags.get(codeFlags.size() - 1);
@@ -470,6 +581,12 @@ public class ClassBands extends BandSet {
         codeLocalVariableTableSlot.add(indx);
     }
 
+    /**
+     * Adds maximum stack and locals information.
+     *
+     * @param maxStack the maximum stack size.
+     * @param maxLocals the maximum number of local variables.
+     */
     public void addMaxStack(final int maxStack, int maxLocals) {
         final Long latestFlag = tempMethodFlags.remove(tempMethodFlags.size() - 1);
         final Long newFlag = Long.valueOf(latestFlag.intValue() | 1 << 17);
@@ -482,6 +599,15 @@ public class ClassBands extends BandSet {
         codeMaxLocals.add(maxLocals);
     }
 
+    /**
+     * Adds a method.
+     *
+     * @param flags the method flags.
+     * @param name the method name.
+     * @param desc the method descriptor.
+     * @param signature the method signature.
+     * @param exceptions the thrown exceptions.
+     */
     public void addMethod(int flags, final String name, final String desc, final String signature, final String[] exceptions) {
         final CPNameAndType nt = cpBands.getCPNameAndType(name, desc);
         tempMethodDesc.add(nt);
@@ -508,6 +634,11 @@ public class ClassBands extends BandSet {
         }
     }
 
+    /**
+     * Adds a new method attribute.
+     *
+     * @param attribute the new method attribute.
+     */
     public void addMethodAttribute(final NewAttribute attribute) {
         final String attributeName = attribute.type;
         for (final NewAttributeBands bands : methodAttributeBands) {
@@ -522,6 +653,20 @@ public class ClassBands extends BandSet {
         throw new IllegalArgumentException("No suitable definition for " + attributeName);
     }
 
+    /**
+     * Adds a parameter annotation.
+     *
+     * @param parameter the parameter index.
+     * @param desc the annotation descriptor.
+     * @param visible whether the annotation is visible at runtime.
+     * @param nameRU the name list.
+     * @param tags the tag list.
+     * @param values the value list.
+     * @param caseArrayN the case array.
+     * @param nestTypeRS the nested type list.
+     * @param nestNameRU the nested name list.
+     * @param nestPairN the nested pair list.
+     */
     public void addParameterAnnotation(final int parameter, final String desc, final boolean visible, final List<String> nameRU, final List<String> tags,
             final List<Object> values, final List<Integer> caseArrayN, final List<String> nestTypeRS, final List<String> nestNameRU,
             final List<Integer> nestPairN) {
@@ -542,6 +687,11 @@ public class ClassBands extends BandSet {
         }
     }
 
+    /**
+     * Adds a source file path.
+     *
+     * @param source a source file path.
+     */
     public void addSourceFile(final String source) {
         String implicitSourceFileName = class_this[index].toString();
         if (implicitSourceFileName.indexOf('$') != -1) {
@@ -571,6 +721,11 @@ public class ClassBands extends BandSet {
         }
     }
 
+    /**
+     * Records that the current class references an inner class.
+     *
+     * @param inner the inner class.
+     */
     public void currentClassReferencesInnerClass(final CPClass inner) {
         if (!(index >= class_this.length)) {
             final CPClass currentClass = class_this[index];
@@ -580,6 +735,12 @@ public class ClassBands extends BandSet {
         }
     }
 
+    /**
+     * Renumbers bytecode indices.
+     *
+     * @param bciRenumbering the renumbering map.
+     * @param labelsToOffsets the label to offset map.
+     */
     public void doBciRenumbering(final IntList bciRenumbering, final Map<Label, Integer> labelsToOffsets) {
         renumberBci(codeLineNumberTableBciP, bciRenumbering, labelsToOffsets);
         renumberBci(codeLocalVariableTableBciP, bciRenumbering, labelsToOffsets);
@@ -604,8 +765,12 @@ public class ClassBands extends BandSet {
         }
     }
 
-    public void endOfClass() { // All the data for the current class has been
-                               // read
+    /**
+     * Called when all the data for the current class has been.
+     *
+     * @see Segment#visitEnd()
+     */
+    public void endOfClass() {
         final int numFields = tempFieldDesc.size();
         class_field_count[index] = numFields;
         field_descr[index] = new CPNameAndType[numFields];
@@ -629,6 +794,11 @@ public class ClassBands extends BandSet {
         index++;
     }
 
+    /**
+     * Called when all the data for the current method has been.
+     *
+     * @see SegmentMethodVisitor#visitEnd()
+     */
     public void endOfMethod() {
         if (tempMethodRVPA != null) {
             method_RVPA_bands.addParameterAnnotation(tempMethodRVPA.numParams, tempMethodRVPA.annoN, tempMethodRVPA.pairN, tempMethodRVPA.typeRS,
@@ -845,14 +1015,29 @@ public class ClassBands extends BandSet {
         return ints;
     }
 
+    /**
+     * Tests whether there are any synthetic classes.
+     *
+     * @return whether there are any synthetic classes.
+     */
     public boolean isAnySyntheticClasses() {
         return anySyntheticClasses;
     }
 
+    /**
+     * Tests whether there are any synthetic fields.
+     *
+     * @return whether there are any synthetic fields.
+     */
     public boolean isAnySyntheticFields() {
         return anySyntheticFields;
     }
 
+    /**
+     * Tests whether there are any synthetic methods.
+     *
+     * @return whether there are any synthetic methods.
+     */
     public boolean isAnySyntheticMethods() {
         return anySyntheticMethods;
     }
@@ -872,6 +1057,11 @@ public class ClassBands extends BandSet {
         return false;
     }
 
+    /**
+     * Gets the number of classes processed.
+     *
+     * @return the number of classes processed.
+     */
     public int numClassesProcessed() {
         return index;
     }

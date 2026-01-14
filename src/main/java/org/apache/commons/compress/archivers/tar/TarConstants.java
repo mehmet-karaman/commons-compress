@@ -24,14 +24,21 @@ package org.apache.commons.compress.archivers.tar;
  * For tar formats (FORMAT_OLDGNU, FORMAT_POSIX, etc.) see GNU tar <a href="https://git.savannah.gnu.org/cgit/tar.git/tree/src/tar.h?h=v1.35">tar.h</a> and type
  * {@code enum archive_format}.
  * </p>
+ * <p>
+ * TODO Next major version: Update to a class.
+ * </p>
  */
 // CheckStyle:InterfaceIsTypeCheck OFF (bc)
 public interface TarConstants {
 
-    /** Default record size */
+    /**
+     * Default record size.
+     */
     int DEFAULT_RCDSIZE = 512;
 
-    /** Default block size */
+    /**
+     * Default block size.
+     */
     int DEFAULT_BLKSIZE = DEFAULT_RCDSIZE * 20;
 
     /**
@@ -98,13 +105,17 @@ public interface TarConstants {
 
     /** Offset of start of magic field within header record */
     int MAGIC_OFFSET = 257;
+
     /**
      * The length of the magic field in a header buffer.
      */
     int MAGICLEN = 6;
 
-    /** Offset of start of magic field within header record */
+    /**
+     * Offset of start of magic field within header record.
+     */
     int VERSION_OFFSET = 263;
+
     /**
      * Previously this was regarded as part of "magic" field, but it is separate.
      */
@@ -286,21 +297,21 @@ public interface TarConstants {
     // See "http://www.opengroup.org/onlinepubs/009695399/utilities/pax.html#tag_04_100_13_02"
 
     /**
-     * Identifies the entry as a Pax extended header.
+     * Identifies the entry as a PAX extended header.
      *
      * @since 1.1
      */
     byte LF_PAX_EXTENDED_HEADER_LC = (byte) 'x';
 
     /**
-     * Identifies the entry as a Pax extended header (SunOS tar -E).
+     * Identifies the entry as a PAX extended header (SunOS tar -E).
      *
      * @since 1.1
      */
     byte LF_PAX_EXTENDED_HEADER_UC = (byte) 'X';
 
     /**
-     * Identifies the entry as a Pax global extended header.
+     * Identifies the entry as a PAX global extended header.
      *
      * @since 1.1
      */
@@ -320,6 +331,10 @@ public interface TarConstants {
      * </p>
      */
     String MAGIC_POSIX = "ustar\0";
+
+    /**
+     * Default version.
+     */
     String VERSION_POSIX = "00";
 
     /**

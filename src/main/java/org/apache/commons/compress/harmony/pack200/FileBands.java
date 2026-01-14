@@ -28,12 +28,13 @@ import java.util.TimeZone;
 
 import org.apache.commons.compress.harmony.pack200.Archive.PackingFile;
 import org.apache.commons.compress.harmony.pack200.Archive.SegmentUnit;
-import org.apache.commons.compress.utils.ExactMath;
 import org.objectweb.asm.ClassReader;
 
 /**
  * Bands containing information about files in the pack200 archive and the file contents for non-class-files. Corresponds to the {@code file_bands} set of bands
  * described in the specification.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class FileBands extends BandSet {
 
@@ -47,7 +48,18 @@ public class FileBands extends BandSet {
     private final PackingOptions options;
     private final CpBands cpBands;
 
-    public FileBands(final CpBands cpBands, final SegmentHeader segmentHeader, final PackingOptions options, final SegmentUnit segmentUnit, final int effort) {
+    /**
+     * Constructs a new FileBands.
+     *
+     * @param cpBands the constant pool bands.
+     * @param segmentHeader the segment header.
+     * @param options the packing options.
+     * @param segmentUnit the segment unit.
+     * @param effort the effort level.
+     * @throws Pack200Exception if an error occurs.
+     */
+    public FileBands(final CpBands cpBands, final SegmentHeader segmentHeader, final PackingOptions options, final SegmentUnit segmentUnit, final int effort)
+            throws Pack200Exception {
         super(effort, segmentHeader);
         fileList = segmentUnit.getFileList();
         this.options = options;
@@ -60,7 +72,6 @@ public class FileBands extends BandSet {
         int totalSize = 0;
         file_bits = new byte[size][];
         final int archiveModtime = segmentHeader.getArchive_modtime();
-
         final Set<String> classNames = new HashSet<>();
         for (final ClassReader reader : segmentUnit.getClassList()) {
             classNames.add(reader.getClassName());
@@ -88,18 +99,15 @@ public class FileBands extends BandSet {
             }
             final byte[] bytes = packingFile.getContents();
             file_size[i] = bytes.length;
-            totalSize = ExactMath.add(totalSize, file_size[i]);
-
+            totalSize = Pack200Exception.addExact(totalSize, file_size[i]);
             // update modification time
             modtime = (packingFile.getModtime() + TimeZone.getDefault().getRawOffset()) / 1000L;
             file_modtime[i] = (int) (modtime - archiveModtime);
             if (isLatest && latestModtime < file_modtime[i]) {
                 latestModtime = file_modtime[i];
             }
-
             file_bits[i] = packingFile.getContents();
         }
-
         if (isLatest) {
             Arrays.fill(file_modtime, latestModtime);
         }

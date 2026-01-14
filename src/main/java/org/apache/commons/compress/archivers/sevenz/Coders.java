@@ -32,6 +32,7 @@ import java.util.zip.DeflaterOutputStream;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
 
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream;
 import org.apache.commons.compress.compressors.deflate64.Deflate64CompressorInputStream;
@@ -46,7 +47,8 @@ import org.tukaani.xz.SPARCOptions;
 import org.tukaani.xz.X86Options;
 
 final class Coders {
-    static class BCJDecoder extends AbstractCoder {
+
+    static final class BCJDecoder extends AbstractCoder {
         private final FilterOptions opts;
 
         BCJDecoder(final FilterOptions opts) {
@@ -59,8 +61,8 @@ final class Coders {
             try {
                 return opts.getInputStream(in);
             } catch (final AssertionError e) {
-                throw new IOException("BCJ filter used in " + archiveName + " needs XZ for Java > 1.4 - see "
-                        + "https://commons.apache.org/proper/commons-compress/limitations.html#7Z", e);
+                throw new ArchiveException("BCJ filter used in " + archiveName
+                        + " needs XZ for Java > 1.4 - see https://commons.apache.org/proper/commons-compress/limitations.html#7Z", e);
             }
         }
 
@@ -71,7 +73,7 @@ final class Coders {
         }
     }
 
-    static class BZIP2Decoder extends AbstractCoder {
+    static final class BZIP2Decoder extends AbstractCoder {
         BZIP2Decoder() {
             super(Number.class);
         }
@@ -89,7 +91,7 @@ final class Coders {
         }
     }
 
-    static class CopyDecoder extends AbstractCoder {
+    static final class CopyDecoder extends AbstractCoder {
         @Override
         InputStream decode(final String archiveName, final InputStream in, final long uncompressedLength, final Coder coder, final byte[] password,
                 final int maxMemoryLimitKiB) throws IOException {
@@ -102,7 +104,7 @@ final class Coders {
         }
     }
 
-    static class Deflate64Decoder extends AbstractCoder {
+    static final class Deflate64Decoder extends AbstractCoder {
         Deflate64Decoder() {
             super(Number.class);
         }
@@ -114,8 +116,9 @@ final class Coders {
         }
     }
 
-    static class DeflateDecoder extends AbstractCoder {
-        static class DeflateDecoderInputStream extends FilterInputStream {
+    static final class DeflateDecoder extends AbstractCoder {
+
+        static final class DeflateDecoderInputStream extends FilterInputStream {
 
             Inflater inflater;
 
@@ -135,7 +138,7 @@ final class Coders {
 
         }
 
-        static class DeflateDecoderOutputStream extends OutputStream {
+        static final class DeflateDecoderOutputStream extends OutputStream {
 
             final DeflaterOutputStream deflaterOutputStream;
             Deflater deflater;
@@ -225,7 +228,7 @@ final class Coders {
             final int maxMemoryLimitKiB) throws IOException {
         final AbstractCoder cb = findByMethod(SevenZMethod.byId(coder.decompressionMethodId));
         if (cb == null) {
-            throw new IOException("Unsupported compression method " + Arrays.toString(coder.decompressionMethodId) + " used in " + archiveName);
+            throw new ArchiveException("Unsupported compression method %s used in '%s'", Arrays.toString(coder.decompressionMethodId), archiveName);
         }
         return cb.decode(archiveName, is, uncompressedLength, coder, password, maxMemoryLimitKiB);
     }
@@ -233,7 +236,7 @@ final class Coders {
     static OutputStream addEncoder(final OutputStream out, final SevenZMethod method, final Object options) throws IOException {
         final AbstractCoder cb = findByMethod(method);
         if (cb == null) {
-            throw new IOException("Unsupported compression method " + method);
+            throw new ArchiveException("Unsupported compression method '%s'", method);
         }
         return cb.encode(out, options);
     }

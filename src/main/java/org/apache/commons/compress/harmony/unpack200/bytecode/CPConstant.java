@@ -22,6 +22,8 @@ import java.util.Objects;
 
 /**
  * Abstract superclass for constant pool constant entries such as numbers or Strings
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public abstract class CPConstant extends ConstantPoolEntry {
 
@@ -30,8 +32,8 @@ public abstract class CPConstant extends ConstantPoolEntry {
     /**
      * Constructs a new CPConstant.
      *
-     * @param tag         TODO
-     * @param value       TODO
+     * @param tag         the constant pool entry type tag.
+     * @param value       the constant value.
      * @param globalIndex index in CpBands
      * @throws NullPointerException if value is null
      */
@@ -52,6 +54,11 @@ public abstract class CPConstant extends ConstantPoolEntry {
         return Objects.equals(value, other.value);
     }
 
+    /**
+     * Gets the value.
+     *
+     * @return the value.
+     */
     protected Object getValue() {
         return value;
     }

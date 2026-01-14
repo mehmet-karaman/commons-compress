@@ -18,13 +18,12 @@
  */
 package org.apache.commons.compress.archivers.sevenz;
 
-import static java.nio.charset.StandardCharsets.UTF_16LE;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -37,10 +36,21 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 
 import org.apache.commons.compress.PasswordRequiredException;
+import org.apache.commons.compress.archivers.ArchiveException;
+import org.apache.commons.io.IOUtils;
 
 final class AES256SHA256Decoder extends AbstractCoder {
 
     private static final class AES256SHA256DecoderInputStream extends InputStream {
+
+        /**
+         * See {@code 7z2500-src/CPP/7zip/Crypto/7zAes.cpp}.
+         *
+         * <pre>static const unsigned k_NumCyclesPower_Supported_MAX = 24;</pre>
+         */
+        private static final int NUM_CYCLES_POWER_MAX = 24;
+        private static final int NUM_CYCLES_POWER_SPECIAL = 0x3f;
+
         private final InputStream in;
         private final Coder coder;
         private final String archiveName;
@@ -67,36 +77,37 @@ final class AES256SHA256Decoder extends AbstractCoder {
                 return cipherInputStream;
             }
             if (coder.properties == null) {
-                throw new IOException("Missing AES256 properties in " + archiveName);
+                throw new ArchiveException("Missing AES256 properties in '%s'", archiveName);
             }
             if (coder.properties.length < 2) {
-                throw new IOException("AES256 properties too short in " + archiveName);
+                throw new ArchiveException("AES256 properties too short in '%s'", archiveName);
             }
             final int byte0 = 0xff & coder.properties[0];
-            final int numCyclesPower = byte0 & 0x3f;
+            final int numCyclesPower = byte0 & NUM_CYCLES_POWER_SPECIAL;
+            if (numCyclesPower > NUM_CYCLES_POWER_MAX && numCyclesPower != NUM_CYCLES_POWER_SPECIAL) {
+                throw new ArchiveException("numCyclesPower %,d exceeds supported limit (%d) in '%s'", numCyclesPower, NUM_CYCLES_POWER_MAX, archiveName);
+            }
             final int byte1 = 0xff & coder.properties[1];
             final int ivSize = (byte0 >> 6 & 1) + (byte1 & 0x0f);
             final int saltSize = (byte0 >> 7 & 1) + (byte1 >> 4);
             if (2 + saltSize + ivSize > coder.properties.length) {
-                throw new IOException("Salt size + IV size too long in " + archiveName);
+                throw new ArchiveException("Salt size + IV size too long in '%s'", archiveName);
             }
             final byte[] salt = new byte[saltSize];
             System.arraycopy(coder.properties, 2, salt, 0, saltSize);
             final byte[] iv = new byte[16];
             System.arraycopy(coder.properties, 2 + saltSize, iv, 0, ivSize);
-
             if (passwordBytes == null) {
                 throw new PasswordRequiredException(archiveName);
             }
             final byte[] aesKeyBytes;
-            if (numCyclesPower == 0x3f) {
+            if (numCyclesPower == NUM_CYCLES_POWER_SPECIAL) {
                 aesKeyBytes = new byte[32];
                 System.arraycopy(salt, 0, aesKeyBytes, 0, saltSize);
                 System.arraycopy(passwordBytes, 0, aesKeyBytes, saltSize, Math.min(passwordBytes.length, aesKeyBytes.length - saltSize));
             } else {
                 aesKeyBytes = sha256Password(passwordBytes, numCyclesPower, salt);
             }
-
             final SecretKey aesKey = AES256Options.newSecretKeySpec(aesKeyBytes);
             try {
                 final Cipher cipher = Cipher.getInstance(AES256Options.TRANSFORMATION);
@@ -159,13 +170,12 @@ final class AES256SHA256Decoder extends AbstractCoder {
 
         @Override
         public void write(final byte[] b, final int off, final int len) throws IOException {
+            IOUtils.checkFromIndexSize(b, off, len);
             int gap = len + count > cipherBlockSize ? cipherBlockSize - count : len;
             System.arraycopy(b, off, cipherBlockBuffer, count, gap);
             count += gap;
-
             if (count == cipherBlockSize) {
                 flushBuffer();
-
                 if (len - gap >= cipherBlockSize) {
                     // skip buffer to encrypt data chunks big enough to fit cipher block size
                     final int multipleCipherBlockSizeLen = (len - gap) / cipherBlockSize * cipherBlockSize;
@@ -215,15 +225,14 @@ final class AES256SHA256Decoder extends AbstractCoder {
     /**
      * Convenience method that encodes Unicode characters into bytes in UTF-16 (little-endian byte order) charset
      *
-     * @param chars characters to encode
-     * @return encoded characters
-     * @since 1.23
+     * @param chars characters to encode.
+     * @return encoded characters.
      */
     static byte[] utf16Decode(final char[] chars) {
         if (chars == null) {
             return null;
         }
-        final ByteBuffer encoded = UTF_16LE.encode(CharBuffer.wrap(chars));
+        final ByteBuffer encoded = StandardCharsets.UTF_16LE.encode(CharBuffer.wrap(chars));
         if (encoded.hasArray()) {
             return encoded.array();
         }
@@ -250,20 +259,20 @@ final class AES256SHA256Decoder extends AbstractCoder {
     @Override
     byte[] getOptionsAsProperties(final Object options) throws IOException {
         final AES256Options opts = (AES256Options) options;
-        final byte[] props = new byte[2 + opts.getSalt().length + opts.getIv().length];
-
+        final byte[] salt = opts.getSalt();
+        final int saltLen = salt.length;
+        final byte[] iv = opts.getIv();
+        final int ivLen = iv.length;
+        final byte[] props = new byte[2 + saltLen + ivLen];
         // First byte : control (numCyclesPower + flags of salt or iv presence)
-        props[0] = (byte) (opts.getNumCyclesPower() | (opts.getSalt().length == 0 ? 0 : 1 << 7) | (opts.getIv().length == 0 ? 0 : 1 << 6));
-
-        if (opts.getSalt().length != 0 || opts.getIv().length != 0) {
+        props[0] = (byte) (opts.getNumCyclesPower() | (saltLen == 0 ? 0 : 1 << 7) | (ivLen == 0 ? 0 : 1 << 6));
+        if (saltLen != 0 || ivLen != 0) {
             // second byte : size of salt/iv data
-            props[1] = (byte) ((opts.getSalt().length == 0 ? 0 : opts.getSalt().length - 1) << 4 | (opts.getIv().length == 0 ? 0 : opts.getIv().length - 1));
-
+            props[1] = (byte) ((saltLen == 0 ? 0 : saltLen - 1) << 4 | (ivLen == 0 ? 0 : ivLen - 1));
             // remain bytes : salt/iv data
-            System.arraycopy(opts.getSalt(), 0, props, 2, opts.getSalt().length);
-            System.arraycopy(opts.getIv(), 0, props, 2 + opts.getSalt().length, opts.getIv().length);
+            System.arraycopy(salt, 0, props, 2, saltLen);
+            System.arraycopy(iv, 0, props, 2 + saltLen, ivLen);
         }
-
         return props;
     }
 }

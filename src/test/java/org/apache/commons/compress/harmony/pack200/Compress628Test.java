@@ -19,18 +19,18 @@
 
 package org.apache.commons.compress.harmony.pack200;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
-public class Compress628Test {
+class Compress628Test {
 
     @Test
-    public void test() throws Exception {
+    void test() throws Exception {
         final CPUTF8 name = new CPUTF8("");
         final CPUTF8 layout = new CPUTF8("Re\\T");
-        assertDoesNotThrow(() -> new NewAttributeBands(1, null, null,
-                new AttributeDefinitionBands.AttributeDefinition(35, AttributeDefinitionBands.CONTEXT_CLASS, name, layout)));
+        assertThrows(Pack200Exception.class, () -> new NewAttributeBands(1, null, null, new AttributeDefinitionBands.AttributeDefinition(35,
+                AttributeDefinitionBands.CONTEXT_CLASS, name, layout)));
     }
 
 }

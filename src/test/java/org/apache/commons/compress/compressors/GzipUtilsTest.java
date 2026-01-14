@@ -25,11 +25,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.apache.commons.compress.compressors.gzip.GzipUtils;
 import org.junit.jupiter.api.Test;
 
-public class GzipUtilsTest {
+/**
+ * Tests {@link GzipUtils}.
+ */
+class GzipUtilsTest {
 
     @SuppressWarnings("deprecation")
     @Test
-    public void testGetCompressedFilename() {
+    void testGetCompressedFileName() {
         assertEquals(".gz", GzipUtils.getCompressedFilename(""));
         assertEquals(".gz", GzipUtils.getCompressedFileName(""));
         assertEquals("x.gz", GzipUtils.getCompressedFilename("x"));
@@ -63,11 +66,14 @@ public class GzipUtilsTest {
 
     @SuppressWarnings("deprecation")
     @Test
-    public void testGetUncompressedFilename() {
+    void testGetUncompressedFileName() {
         assertEquals("", GzipUtils.getUncompressedFilename(""));
         assertEquals("", GzipUtils.getUncompressedFileName(""));
         assertEquals(".gz", GzipUtils.getUncompressedFilename(".gz"));
         assertEquals(".gz", GzipUtils.getUncompressedFileName(".gz"));
+        assertEquals("tar", GzipUtils.getUncompressedFileName("tar.gz"));
+        assertEquals(".tar", GzipUtils.getUncompressedFileName(".tar.gz"));
+        assertEquals("x.tar", GzipUtils.getUncompressedFileName("x.tar.gz"));
 
         assertEquals("x.tar", GzipUtils.getUncompressedFilename("x.tgz"));
         assertEquals("x.tar", GzipUtils.getUncompressedFileName("x.tgz"));
@@ -109,7 +115,7 @@ public class GzipUtilsTest {
 
     @SuppressWarnings("deprecation")
     @Test
-    public void testIsCompressedFilename() {
+    void testIsCompressedFileName() {
         assertFalse(GzipUtils.isCompressedFilename(""));
         assertFalse(GzipUtils.isCompressedFileName(""));
         assertFalse(GzipUtils.isCompressedFilename(".gz"));

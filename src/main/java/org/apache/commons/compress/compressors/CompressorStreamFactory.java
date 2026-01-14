@@ -24,7 +24,6 @@ import java.io.OutputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.SortedMap;
@@ -58,8 +57,9 @@ import org.apache.commons.compress.compressors.z.ZCompressorInputStream;
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorOutputStream;
 import org.apache.commons.compress.compressors.zstandard.ZstdUtils;
-import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.compress.utils.Sets;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * <p>
@@ -203,10 +203,10 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
     /**
      * Detects the type of compressor stream.
      *
-     * @param inputStream input stream
-     * @return type of compressor stream detected
-     * @throws CompressorException      if no compressor stream type was detected or if something else went wrong
-     * @throws IllegalArgumentException if stream is null or does not support mark
+     * @param inputStream input stream.
+     * @return type of compressor stream detected.
+     * @throws CompressorException      if no compressor stream type was detected or if something else went wrong.
+     * @throws IllegalArgumentException if stream is null or does not support mark.
      * @since 1.14
      */
     public static String detect(final InputStream inputStream) throws CompressorException {
@@ -216,11 +216,11 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
     /**
      * Detects the type of compressor stream while limiting the type to the provided set of compressor names.
      *
-     * @param inputStream     input stream
-     * @param compressorNames compressor names to limit autodetection
-     * @return type of compressor stream detected
-     * @throws CompressorException      if no compressor stream type was detected or if something else went wrong
-     * @throws IllegalArgumentException if stream is null or does not support mark
+     * @param inputStream     input stream.
+     * @param compressorNames compressor names to limit autodetection.
+     * @return type of compressor stream detected.
+     * @throws CompressorException      if no compressor stream type was detected or if something else went wrong.
+     * @throws IllegalArgumentException if stream is null or does not support mark.
      */
     static String detect(final InputStream inputStream, final Set<String> compressorNames) throws CompressorException {
         if (inputStream == null) {
@@ -236,7 +236,7 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
         inputStream.mark(signature.length);
         int signatureLength = -1;
         try {
-            signatureLength = IOUtils.readFully(inputStream, signature);
+            signatureLength = IOUtils.read(inputStream, signature);
             inputStream.reset();
         } catch (final IOException e) {
             throw new CompressorException("Failed to read signature.", e);
@@ -291,7 +291,7 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
      * This method may return different results at different times if new providers are dynamically made available to the current Java virtual machine.
      * </p>
      *
-     * @return An immutable, map from names to provider objects
+     * @return An immutable, map from names to provider objects.
      * @since 1.13
      */
     public static SortedMap<String, CompressorStreamProvider> findAvailableCompressorInputStreamProviders() {
@@ -320,7 +320,7 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
      * This method may return different results at different times if new providers are dynamically made available to the current Java virtual machine.
      * </p>
      *
-     * @return An immutable, map from names to provider objects
+     * @return An immutable, map from names to provider objects.
      * @since 1.13
      */
     public static SortedMap<String, CompressorStreamProvider> findAvailableCompressorOutputStreamProviders() {
@@ -332,66 +332,138 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
         });
     }
 
+    /**
+     * Gets the string used to identify the {@link #BROTLI} compression algorithm.
+     *
+     * @return the string used to identify the {@link #BROTLI} compression algorithm.
+     */
     public static String getBrotli() {
         return BROTLI;
     }
 
+    /**
+     * Gets the string used to identify the {@link #BZIP2} compression algorithm.
+     *
+     * @return the string used to identify the {@link #BZIP2} compression algorithm.
+     */
     public static String getBzip2() {
         return BZIP2;
     }
 
+    /**
+     * Gets the string used to identify the {@link #DEFLATE} compression algorithm.
+     *
+     * @return the string used to identify the {@link #DEFLATE} compression algorithm.
+     */
     public static String getDeflate() {
         return DEFLATE;
     }
 
     /**
+     * Gets the string used to identify the {@link #DEFLATE64} compression algorithm.
+     *
+     * @return the string used to identify the {@link #DEFLATE64} compression algorithm.
      * @since 1.16
-     * @return the constant {@link #DEFLATE64}
      */
     public static String getDeflate64() {
         return DEFLATE64;
     }
 
+    /**
+     * Gets the string used to identify the {@link #GZIP} compression algorithm.
+     *
+     * @return the string used to identify the {@link #GZIP} compression algorithm.
+     */
     public static String getGzip() {
         return GZIP;
     }
 
+    /**
+     * Gets the string used to identify the {@link #LZ4_BLOCK} compression algorithm.
+     *
+     * @return the string used to identify the {@link #LZ4_BLOCK} compression algorithm.
+     */
     public static String getLZ4Block() {
         return LZ4_BLOCK;
     }
 
+    /**
+     * Gets the string used to identify the {@link #GZIP} compression algorithm.
+     *
+     * @return the string used to identify the {@link #GZIP} compression algorithm.
+     */
     public static String getLZ4Framed() {
         return LZ4_FRAMED;
     }
 
+    /**
+     * Gets the string used to identify the {@link #LZMA} compression algorithm.
+     *
+     * @return the string used to identify the {@link #LZMA} compression algorithm.
+     */
     public static String getLzma() {
         return LZMA;
     }
 
+    /**
+     * Gets the string used to identify the {@link #PACK200} compression algorithm.
+     *
+     * @return the string used to identify the {@link #PACK200} compression algorithm.
+     */
     public static String getPack200() {
         return PACK200;
     }
 
+    /**
+     * Gets singleton instance.
+     *
+     * @return the singleton instance.
+     */
     public static CompressorStreamFactory getSingleton() {
         return SINGLETON;
     }
 
+    /**
+     * Gets the string used to identify the {@link #SNAPPY_FRAMED} compression algorithm.
+     *
+     * @return the string used to identify the {@link #SNAPPY_FRAMED} compression algorithm.
+     */
     public static String getSnappyFramed() {
         return SNAPPY_FRAMED;
     }
 
+    /**
+     * Gets the string used to identify the {@link #SNAPPY_RAW} compression algorithm.
+     *
+     * @return the string used to identify the {@link #SNAPPY_RAW} compression algorithm.
+     */
     public static String getSnappyRaw() {
         return SNAPPY_RAW;
     }
 
+    /**
+     * Gets the string used to identify the {@link #XZ} compression algorithm.
+     *
+     * @return the string used to identify the {@link #XZ} compression algorithm.
+     */
     public static String getXz() {
         return XZ;
     }
 
+    /**
+     * Gets the string used to identify the {@link #Z} compression algorithm.
+     *
+     * @return the string used to identify the {@link #Z} compression algorithm.
+     */
     public static String getZ() {
         return Z;
     }
 
+    /**
+     * Gets the string used to identify the {@link #ZSTANDARD} compression algorithm.
+     *
+     * @return the string used to identify the {@link #ZSTANDARD} compression algorithm.
+     */
     public static String getZstandard() {
         return ZSTANDARD;
     }
@@ -401,7 +473,7 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
     }
 
     private static String toKey(final String name) {
-        return name.toUpperCase(Locale.ROOT);
+        return StringUtils.toRootUpperCase(name);
     }
 
     private static String youNeed(final String name, final String url) {
@@ -471,10 +543,10 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
      * Creates a compressor input stream from an input stream, auto-detecting the compressor type from the first few bytes of the stream. The InputStream must
      * support marks, like BufferedInputStream.
      *
-     * @param in the input stream
-     * @return the compressor input stream
-     * @throws CompressorException      if the compressor name is not known
-     * @throws IllegalArgumentException if the stream is null or does not support mark
+     * @param in the input stream.
+     * @return the compressor input stream.
+     * @throws CompressorException      if the compressor name is not known.
+     * @throws IllegalArgumentException if the stream is null or does not support mark.
      * @since 1.1
      */
     public CompressorInputStream createCompressorInputStream(final InputStream in) throws CompressorException {
@@ -485,11 +557,11 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
      * Creates a compressor input stream from an input stream, auto-detecting the compressor type from the first few bytes of the stream while limiting the
      * detected type to the provided set of compressor names. The InputStream must support marks, like BufferedInputStream.
      *
-     * @param in              the input stream
-     * @param compressorNames compressor names to limit autodetection
-     * @return the compressor input stream
-     * @throws CompressorException      if the autodetected compressor is not in the provided set of compressor names
-     * @throws IllegalArgumentException if the stream is null or does not support mark
+     * @param in              the input stream.
+     * @param compressorNames compressor names to limit autodetection.
+     * @return the compressor input stream.
+     * @throws CompressorException      if the autodetected compressor is not in the provided set of compressor names.
+     * @throws IllegalArgumentException if the stream is null or does not support mark.
      * @since 1.25.0
      */
     public CompressorInputStream createCompressorInputStream(final InputStream in, final Set<String> compressorNames) throws CompressorException {
@@ -502,11 +574,11 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
      * @param name of the compressor, i.e. {@value #GZIP}, {@value #BZIP2}, {@value #XZ}, {@value #LZMA}, {@value #PACK200}, {@value #SNAPPY_RAW},
      *             {@value #SNAPPY_FRAMED}, {@value #Z}, {@value #LZ4_BLOCK}, {@value #LZ4_FRAMED}, {@value #ZSTANDARD}, {@value #DEFLATE64} or
      *             {@value #DEFLATE}
-     * @param in   the input stream
-     * @return compressor input stream
+     * @param in   the input stream.
+     * @return compressor input stream.
      * @throws CompressorException      if the compressor name is not known or not available, or if there's an IOException or MemoryLimitException thrown during
-     *                                  initialization
-     * @throws IllegalArgumentException if the name or input stream is null
+     *                                  initialization.
+     * @throws IllegalArgumentException if the name or input stream is null.
      */
     public CompressorInputStream createCompressorInputStream(final String name, final InputStream in) throws CompressorException {
         return createCompressorInputStream(name, in, decompressConcatenated);
@@ -520,7 +592,12 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
         }
         try {
             if (GZIP.equalsIgnoreCase(name)) {
-                return GzipCompressorInputStream.builder().setInputStream(in).setDecompressConcatenated(actualDecompressConcatenated).get();
+                // @formatter:off
+                return GzipCompressorInputStream.builder()
+                        .setInputStream(in)
+                        .setDecompressConcatenated(actualDecompressConcatenated)
+                        .get();
+                // @formatter:on
             }
             if (BZIP2.equalsIgnoreCase(name)) {
                 return new BZip2CompressorInputStream(in, actualDecompressConcatenated);
@@ -535,7 +612,13 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
                 if (!XZUtils.isXZCompressionAvailable()) {
                     throw new CompressorException("XZ compression is not available." + YOU_NEED_XZ_JAVA);
                 }
-                return new XZCompressorInputStream(in, actualDecompressConcatenated, memoryLimitInKb);
+                // @formatter:off
+                return XZCompressorInputStream.builder()
+                        .setInputStream(in)
+                        .setDecompressConcatenated(actualDecompressConcatenated)
+                        .setMemoryLimitKiB(memoryLimitInKb)
+                        .get();
+                // @formatter:on
             }
             if (ZSTANDARD.equalsIgnoreCase(name)) {
                 if (!ZstdUtils.isZstdCompressionAvailable()) {
@@ -547,7 +630,7 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
                 if (!LZMAUtils.isLZMACompressionAvailable()) {
                     throw new CompressorException("LZMA compression is not available" + YOU_NEED_XZ_JAVA);
                 }
-                return new LZMACompressorInputStream(in, memoryLimitInKb);
+                return LZMACompressorInputStream.builder().setInputStream(in).setMemoryLimitKiB(memoryLimitInKb).get();
             }
             if (PACK200.equalsIgnoreCase(name)) {
                 return new Pack200CompressorInputStream(in);
@@ -581,21 +664,22 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
         if (compressorStreamProvider != null) {
             return compressorStreamProvider.createCompressorInputStream(name, in, actualDecompressConcatenated);
         }
-        throw new CompressorException("Compressor: " + name + " not found.");
+        throw new CompressorException("Compressor: '%s' not found.", name);
     }
 
     /**
      * Creates a compressor output stream from a compressor name and an output stream.
      *
      * @param name the compressor name, i.e. {@value #GZIP}, {@value #BZIP2}, {@value #XZ}, {@value #PACK200}, {@value #SNAPPY_FRAMED}, {@value #LZ4_BLOCK},
-     *             {@value #LZ4_FRAMED}, {@value #ZSTANDARD} or {@value #DEFLATE}
-     * @param out  the output stream
-     * @return the compressor output stream
-     * @throws CompressorException      if the archiver name is not known
-     * @throws IllegalArgumentException if the archiver name or stream is null
+     *             {@value #LZ4_FRAMED}, {@value #ZSTANDARD} or {@value #DEFLATE}.
+     * @param out  the output stream.
+     * @return the compressor output stream.
+     * @throws CompressorException      if the archiver name is not known.
+     * @throws IllegalArgumentException if the archiver name or stream is null.
      */
+    @SuppressWarnings("unchecked")
     @Override
-    public CompressorOutputStream<?> createCompressorOutputStream(final String name, final OutputStream out) throws CompressorException {
+    public CompressorOutputStream<? extends OutputStream> createCompressorOutputStream(final String name, final OutputStream out) throws CompressorException {
         if (name == null || out == null) {
             throw new IllegalArgumentException("Compressor name and stream must not be null.");
         }
@@ -637,9 +721,14 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
         if (compressorStreamProvider != null) {
             return compressorStreamProvider.createCompressorOutputStream(name, out);
         }
-        throw new CompressorException("Compressor: " + name + " not found.");
+        throw new CompressorException("Compressor: '%s' not found.", name);
     }
 
+    /**
+     * Gets a sorted map of compression input stream providers.
+     *
+     * @return a sorted map of compression input stream providers.
+     */
     public SortedMap<String, CompressorStreamProvider> getCompressorInputStreamProviders() {
         if (compressorInputStreamProviders == null) {
             compressorInputStreamProviders = Collections.unmodifiableSortedMap(findAvailableCompressorInputStreamProviders());
@@ -647,6 +736,11 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
         return compressorInputStreamProviders;
     }
 
+    /**
+     * Gets a sorted map of compression output stream providers.
+     *
+     * @return a sorted map of compression output stream providers.
+     */
     public SortedMap<String, CompressorStreamProvider> getCompressorOutputStreamProviders() {
         if (compressorOutputStreamProviders == null) {
             compressorOutputStreamProviders = Collections.unmodifiableSortedMap(findAvailableCompressorOutputStreamProviders());
@@ -659,6 +753,12 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
         return decompressConcatenated;
     }
 
+    /**
+     * Tests whether we decompress until the end of the input. If false, stop after the first stream and leave the input position to point to the next byte
+     * after the stream.
+     *
+     * @return whether we decompress until the end of the input.
+     */
     public Boolean getDecompressUntilEOF() {
         return decompressUntilEof;
     }
@@ -681,10 +781,10 @@ public class CompressorStreamFactory implements CompressorStreamProvider {
      * </p>
      *
      * @param decompressConcatenated if true, decompress until the end of the input; if false, stop after the first stream and leave the input position to point
-     *                               to the next byte after the stream
+     *                               to the next byte after the stream.
      * @since 1.5
-     * @deprecated 1.10 use the {@link #CompressorStreamFactory(boolean)} constructor instead
-     * @throws IllegalStateException if the constructor {@link #CompressorStreamFactory(boolean)} was used to create the factory
+     * @throws IllegalStateException if the constructor {@link #CompressorStreamFactory(boolean)} was used to create the factory.
+     * @deprecated 1.10 use the {@link #CompressorStreamFactory(boolean)} constructor instead.
      */
     @Deprecated
     public void setDecompressConcatenated(final boolean decompressConcatenated) {

@@ -30,7 +30,7 @@ import java.util.Objects;
  * {@link RandomAccessOutputStream} implementation based on a file.
  */
 // Keep package-private; consider for Apache Commons IO.
-class FileRandomAccessOutputStream extends RandomAccessOutputStream {
+final class FileRandomAccessOutputStream extends RandomAccessOutputStream {
 
     private final FileChannel channel;
 
@@ -66,19 +66,13 @@ class FileRandomAccessOutputStream extends RandomAccessOutputStream {
 
     @Override
     public synchronized void write(final byte[] b, final int off, final int len) throws IOException {
-        ZipIoUtil.writeFully(this.channel, ByteBuffer.wrap(b, off, len));
+        ZipIoUtil.writeAll(channel, ByteBuffer.wrap(b, off, len));
         position += len;
     }
 
     @Override
-    public void writeFully(final byte[] b, final int off, final int len, final long atPosition) throws IOException {
-        final ByteBuffer buf = ByteBuffer.wrap(b, off, len);
-        for (long currentPos = atPosition; buf.hasRemaining();) {
-            final int written = this.channel.write(buf, currentPos);
-            if (written <= 0) {
-                throw new IOException("Failed to fully write to file: written=" + written);
-            }
-            currentPos += written;
-        }
+    public void writeAll(final byte[] b, final int off, final int len, final long pos) throws IOException {
+        ZipIoUtil.writeAll(channel, ByteBuffer.wrap(b, off, len), pos);
+        position += len;
     }
 }

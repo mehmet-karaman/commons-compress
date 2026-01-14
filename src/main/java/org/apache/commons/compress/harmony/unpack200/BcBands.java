@@ -37,12 +37,45 @@ import org.apache.commons.compress.harmony.unpack200.bytecode.NewAttribute;
 import org.apache.commons.compress.harmony.unpack200.bytecode.OperandManager;
 
 /**
- * Bytecode bands
+ * Bytecode bands that transmit bytecode instructions.
+ *
+ * <pre>
+ * bc_bands:
+ *      *bc_codes :BYTE1 [...]
+ *      *bc_case_count :UNSIGNED5 [COUNT(switch,*bc_codes)]
+ *      *bc_case_value :DELTA5 [...]
+ *      *bc_byte :BYTE1 [...]
+ *      *bc_short :DELTA5 [...]
+ *      *bc_local :UNSIGNED5 [...]
+ *      *bc_label :BRANCH5 [...]
+ *      *bc_intref :DELTA5 [...] (cp_Int)
+ *      *bc_floatref :DELTA5 [...] (cp_Float)
+ *      *bc_longref :DELTA5 [...] (cp_Long)
+ *      *bc_doubleref :DELTA5 [...] (cp_Double)
+ *      *bc_stringref :DELTA5 [...] (cp_String)
+ *      *bc_loadablevalueref :DELTA5 [...] (cp_LoadableValue)
+ *      *bc_classref :UNSIGNED5 [...] (current class or cp_Class)
+ *      *bc_fieldref :DELTA5 [...] (cp_Field)
+ *      *bc_methodref :UNSIGNED5 [...] (cp_Method)
+ *      *bc_imethodref :DELTA5 [...] (cp_Imethod)
+ *      *bc_indyref :DELTA5 [...] (cp_InvokeDynamic)
+ *      *bc_thisfield :UNSIGNED5 [...] (cp_Field, only for current class)
+ *      *bc_superfield :UNSIGNED5 [...] (cp_Field, only for current super)
+ *      *bc_thismethod :UNSIGNED5 [...] (cp_Method, only for current class)
+ *      *bc_supermethod :UNSIGNED5 [...] (cp_Method, only for current super)
+ *      *bc_initref :UNSIGNED5 [...] (cp_Field, only for most recent new)
+ *      *bc_escref :UNSIGNED5 [COUNT(ref_escape,*bc_codes)] (cp_All)
+ *      *bc_escrefsize :UNSIGNED5 [...]
+ *      *bc_escsize :UNSIGNED5 [...]
+ *      *bc_escbyte :BYTE1 [...]
+ * </pre>
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications - 5.10.
+ *      Bytecode Instructions</a>
  */
 public class BcBands extends BandSet {
 
-    // The bytecodes for each method in each class as they come (i.e. in their
-    // packed format)
+    /** The bytecodes for each method in each class as they come (i.e. in their packed format). */
     private byte[][][] methodByteCodePacked;
 
     // The bands
@@ -75,7 +108,9 @@ public class BcBands extends BandSet {
     private List<Integer> wideByteCodes;
 
     /**
-     * @param segment TODO
+     * Constructs a new instance for the given segment.
+     *
+     * @param segment The segment.
      */
     public BcBands(final Segment segment) {
         super(segment);
@@ -89,86 +124,191 @@ public class BcBands extends BandSet {
         return codePacked >= 54 && codePacked <= 58;
     }
 
+    /**
+     * Gets the bcByte array.
+     *
+     * @return the bcByte array.
+     */
     public int[] getBcByte() {
         return bcByte;
     }
 
+    /**
+     * Gets the bcCaseCount array.
+     *
+     * @return the bcCaseCount array.
+     */
     public int[] getBcCaseCount() {
         return bcCaseCount;
     }
 
+    /**
+     * Gets the bcCaseValue array.
+     *
+     * @return the bcCaseValue array.
+     */
     public int[] getBcCaseValue() {
         return bcCaseValue;
     }
 
+    /**
+     * Gets the bcClassRef array.
+     *
+     * @return the bcClassRef array.
+     */
     public int[] getBcClassRef() {
         return bcClassRef;
     }
 
+    /**
+     * Gets the bcDoubleRef array.
+     *
+     * @return the bcDoubleRef array.
+     */
     public int[] getBcDoubleRef() {
         return bcDoubleRef;
     }
 
+    /**
+     * Gets the bcFieldRef array.
+     *
+     * @return the bcFieldRef array.
+     */
     public int[] getBcFieldRef() {
         return bcFieldRef;
     }
 
+    /**
+     * Gets the bcFloatRef array.
+     *
+     * @return the bcFloatRef array.
+     */
     public int[] getBcFloatRef() {
         return bcFloatRef;
     }
 
+    /**
+     * Gets the bcIMethodRef array.
+     *
+     * @return the bcIMethodRef array.
+     */
     public int[] getBcIMethodRef() {
         return bcIMethodRef;
     }
 
+    /**
+     * Gets the bcInitRef array.
+     *
+     * @return the bcInitRef array.
+     */
     public int[] getBcInitRef() {
         return bcInitRef;
     }
 
+    /**
+     * Gets the bcIntRef array.
+     *
+     * @return the bcIntRef array.
+     */
     public int[] getBcIntRef() {
         return bcIntRef;
     }
 
+    /**
+     * Gets the bcLabel array.
+     *
+     * @return the bcLabel array.
+     */
     public int[] getBcLabel() {
         return bcLabel;
     }
 
+    /**
+     * Gets the bcLocal array.
+     *
+     * @return the bcLocal array.
+     */
     public int[] getBcLocal() {
         return bcLocal;
     }
 
+    /**
+     * Gets the bcLongRef array.
+     *
+     * @return the bcLongRef array.
+     */
     public int[] getBcLongRef() {
         return bcLongRef;
     }
 
+    /**
+     * Gets the bcMethodRef array.
+     *
+     * @return the bcMethodRef array.
+     */
     public int[] getBcMethodRef() {
         return bcMethodRef;
     }
 
+    /**
+     * Gets the bcShort array.
+     *
+     * @return the bcShort array.
+     */
     public int[] getBcShort() {
         return bcShort;
     }
 
+    /**
+     * Gets the bcStringRef array.
+     *
+     * @return the bcStringRef array.
+     */
     public int[] getBcStringRef() {
         return bcStringRef;
     }
 
+    /**
+     * Gets the bcSuperField array.
+     *
+     * @return the bcSuperField array.
+     */
     public int[] getBcSuperField() {
         return bcSuperField;
     }
 
+    /**
+     * Gets the bcSuperMethod array.
+     *
+     * @return the bcSuperMethod array.
+     */
     public int[] getBcSuperMethod() {
         return bcSuperMethod;
     }
 
+    /**
+     * Gets the bcThisField array.
+     *
+     * @return the bcThisField array.
+     */
     public int[] getBcThisField() {
         return bcThisField;
     }
 
+    /**
+     * Gets the bcThisMethod array.
+     *
+     * @return the bcThisMethod array.
+     */
     public int[] getBcThisMethod() {
         return bcThisMethod;
     }
 
+    /**
+     * Gets the method bytecode packed data.
+     *
+     * @return the method bytecode packed data.
+     */
     public byte[][][] getMethodByteCodePacked() {
         return methodByteCodePacked;
     }

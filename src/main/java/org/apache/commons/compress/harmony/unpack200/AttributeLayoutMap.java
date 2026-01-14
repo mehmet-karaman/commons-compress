@@ -29,6 +29,8 @@ import org.apache.commons.compress.harmony.pack200.Pack200Exception;
 /**
  * Stores a mapping from attribute names to their corresponding layout types. Note that names of attribute layouts and their formats are <em>not</em>
  * internationalized, and should not be translated.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class AttributeLayoutMap {
 
@@ -126,16 +128,32 @@ public class AttributeLayoutMap {
 
     private final Map<AttributeLayout, NewAttributeBands> layoutsToBands = new HashMap<>();
 
+    /**
+     * Constructs a new instance with default values.
+     *
+     * @throws Pack200Exception if an error occurs.
+     */
     public AttributeLayoutMap() throws Pack200Exception {
         for (final AttributeLayout defaultAttributeLayout : getDefaultAttributeLayouts()) {
             add(defaultAttributeLayout);
         }
     }
 
+    /**
+     * Adds an attribute layout to this map.
+     *
+     * @param layout the attribute layout to add.
+     */
     public void add(final AttributeLayout layout) {
         getLayout(layout.getContext()).put(Integer.valueOf(layout.getIndex()), layout);
     }
 
+    /**
+     * Adds an attribute layout and associates it with new attribute bands.
+     *
+     * @param layout the attribute layout to add.
+     * @param newBands the new attribute bands.
+     */
     public void add(final AttributeLayout layout, final NewAttributeBands newBands) {
         add(layout);
         layoutsToBands.put(layout, newBands);
@@ -158,23 +176,43 @@ public class AttributeLayoutMap {
                 for (int j2 = j + 1; j2 < layouts.size(); j2++) {
                     final AttributeLayout layout2 = layouts.get(j2);
                     if (layout1.getName().equals(layout2.getName()) && layout1.getLayout().equals(layout2.getLayout())) {
-                        throw new Pack200Exception("Same layout/name combination: " + layout1.getLayout() + "/" + layout1.getName()
-                                + " exists twice for context: " + AttributeLayout.contextNames[layout1.getContext()]);
+                        throw new Pack200Exception("Same layout/name combination: %s/%s exists twice for context: %s", layout1.getLayout(), layout1.getName(),
+                                AttributeLayout.contextNames[layout1.getContext()]);
                     }
                 }
             }
         }
     }
 
+    /**
+     * Gets the attribute bands for the given layout.
+     *
+     * @param layout the attribute layout.
+     * @return the attribute bands.
+     */
     public NewAttributeBands getAttributeBands(final AttributeLayout layout) {
         return layoutsToBands.get(layout);
     }
 
+    /**
+     * Gets the attribute layout for the given index and context.
+     *
+     * @param index the index.
+     * @param context the context.
+     * @return the attribute layout.
+     */
     public AttributeLayout getAttributeLayout(final int index, final int context) {
         final Map<Integer, AttributeLayout> map = getLayout(context);
         return map.get(Integer.valueOf(index));
     }
 
+    /**
+     * Gets the attribute layout for the given name and context.
+     *
+     * @param name the attribute name.
+     * @param context the context.
+     * @return the attribute layout, or null if not found.
+     */
     public AttributeLayout getAttributeLayout(final String name, final int context) {
         final Map<Integer, AttributeLayout> map = getLayout(context);
         for (final AttributeLayout layout : map.values()) {

@@ -40,6 +40,8 @@ import org.apache.commons.io.input.BoundedInputStream;
 /**
  * Archive is the main entry point to unpack200. An archive is constructed with either two file names, a pack file and an output file name or an input stream
  * and an output streams. Then {@code unpack()} is called, to unpack the pack200 archive.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class Archive {
 
@@ -71,7 +73,7 @@ public class Archive {
      * Creates an Archive with streams for the input and output files. Note: If you use this method then calling {@link #setRemovePackFile(boolean)} will have
      * no effect.
      *
-     * @param inputStream  the input stream, preferably a {@link BoundedInputStream}. The bound can the the file size.
+     * @param inputStream  the input stream, preferably a {@link BoundedInputStream}. The bound can the file size.
      * @param outputStream the JAR output stream.
      * @throws IOException if an I/O error occurs
      */
@@ -229,7 +231,7 @@ public class Archive {
                     i++;
                     final Segment segment = new Segment();
                     segment.setLogLevel(logLevel);
-                    segment.setLogStream(logFile != null ? logFile : System.out);
+                    segment.setLogStream(logFile);
                     segment.setPreRead(false);
                     if (i == 1) {
                         segment.log(Segment.LOG_LEVEL_VERBOSE, "Unpacking from " + inputPath + " to " + outputFileName);

@@ -29,8 +29,8 @@ import java.util.Date;
 import java.util.Objects;
 
 import org.apache.commons.compress.archivers.ArchiveEntry;
-import org.apache.commons.compress.utils.ExactMath;
-import org.apache.commons.compress.utils.TimeUtils;
+import org.apache.commons.compress.archivers.ArchiveException;
+import org.apache.commons.io.file.attribute.FileTimes;
 
 /**
  * A cpio archive consists of a sequence of files. There are several types of headers defined in two categories of new and old format. The headers are
@@ -57,7 +57,7 @@ import org.apache.commons.compress.utils.TimeUtils;
  * <h2>OLD FORMAT</h2>
  *
  * <p>
- * Each file has a 76 (ascii) / 26 (binary) byte header, a variable length, NUL terminated file name, and variable length file data. A header for a file name
+ * Each file has a 76 (ASCII) / 26 (binary) byte header, a variable length, NUL terminated file name, and variable length file data. A header for a file name
  * "TRAILER!!!" indicates the end of the archive.
  * </p>
  *
@@ -155,7 +155,7 @@ import org.apache.commons.compress.utils.TimeUtils;
  * </p>
  *
  * <p>
- * N.B. does not handle the cpio "tar" format
+ * Does not handle the cpio "tar" format
  * </p>
  *
  * @NotThreadSafe
@@ -170,10 +170,10 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      */
     private final short fileFormat;
 
-    /** The number of bytes in each header record; depends on the file format */
+    /** The number of bytes in each header record; depends on the file format. */
     private final int headerSize;
 
-    /** The boundary to which the header and data elements are aligned: 0, 2 or 4 bytes */
+    /** The boundary to which the header and data elements are aligned: 0, 2 or 4 bytes. */
     private final int alignmentBoundary;
 
     // Header fields
@@ -221,7 +221,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * @param inputPath The file to gather information from.
      * @param entryName The name of this entry.
      * @param options   options indicating how symbolic links are handled.
-     * @throws IOException if an I/O error occurs
+     * @throws IOException if an I/O error occurs.
      * @since 1.21
      */
     public CpioArchiveEntry(final Path inputPath, final String entryName, final LinkOption... options) throws IOException {
@@ -314,7 +314,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      *                  </pre>
      *
      * @param options   options indicating how symbolic links are handled.
-     * @throws IOException if an I/O error occurs
+     * @throws IOException if an I/O error occurs.
      * @since 1.21
      */
     public CpioArchiveEntry(final short format, final Path inputPath, final String entryName, final LinkOption... options) throws IOException {
@@ -388,7 +388,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * Creates a CpioArchiveEntry with a specified name. The format of this entry will be the new format.
      *
      * @param name The name of this entry.
-     * @param size The size of this entry
+     * @param size The size of this entry.
      */
     public CpioArchiveEntry(final String name, final long size) {
         this(name);
@@ -399,7 +399,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * Checks if the method is allowed for the defined format.
      */
     private void checkNewFormat() {
-        if ((this.fileFormat & FORMAT_NEW_MASK) == 0) {
+        if ((fileFormat & FORMAT_NEW_MASK) == 0) {
             throw new UnsupportedOperationException();
         }
     }
@@ -408,7 +408,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * Checks if the method is allowed for the defined format.
      */
     private void checkOldFormat() {
-        if ((this.fileFormat & FORMAT_OLD_MASK) == 0) {
+        if ((fileFormat & FORMAT_OLD_MASK) == 0) {
             throw new UnsupportedOperationException();
         }
     }
@@ -431,38 +431,38 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
     }
 
     /**
-     * Gets the alignment boundary for this CPIO format
+     * Gets the alignment boundary for this CPIO format.
      *
-     * @return the alignment boundary (0, 2, 4) in bytes
+     * @return the alignment boundary (0, 2, 4) in bytes.
      */
     public int getAlignmentBoundary() {
-        return this.alignmentBoundary;
+        return alignmentBoundary;
     }
 
     /**
      * Gets the checksum. Only supported for the new formats.
      *
      * @return the checksum.
-     * @throws UnsupportedOperationException if the format is not a new format
+     * @throws UnsupportedOperationException if the format is not a new format.
      */
     public long getChksum() {
         checkNewFormat();
-        return this.chksum & 0xFFFFFFFFL;
+        return chksum & 0xFFFFFFFFL;
     }
 
     /**
      * Gets the number of bytes needed to pad the data to the alignment boundary.
      *
-     * @return the number of bytes needed to pad the data (0,1,2,3)
+     * @return the number of bytes needed to pad the data (0,1,2,3).
      */
     public int getDataPadCount() {
-        if (this.alignmentBoundary == 0) {
+        if (alignmentBoundary == 0) {
             return 0;
         }
-        final long size = this.fileSize;
-        final int remain = (int) (size % this.alignmentBoundary);
+        final long size = fileSize;
+        final long remain = size % alignmentBoundary;
         if (remain > 0) {
-            return this.alignmentBoundary - remain;
+            return (int) (alignmentBoundary - remain);
         }
         return 0;
     }
@@ -475,7 +475,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      */
     public long getDevice() {
         checkOldFormat();
-        return this.min;
+        return min;
     }
 
     /**
@@ -486,18 +486,18 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      */
     public long getDeviceMaj() {
         checkNewFormat();
-        return this.maj;
+        return maj;
     }
 
     /**
-     * Gets the minor device id
+     * Gets the minor device id.
      *
      * @return the minor device id.
-     * @throws UnsupportedOperationException if format is not a new format
+     * @throws UnsupportedOperationException if format is not a new format.
      */
     public long getDeviceMin() {
         checkNewFormat();
-        return this.min;
+        return min;
     }
 
     /**
@@ -506,7 +506,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * @return the format.
      */
     public short getFormat() {
-        return this.fileFormat;
+        return fileFormat;
     }
 
     /**
@@ -515,18 +515,19 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * @return the group id.
      */
     public long getGID() {
-        return this.gid;
+        return gid;
     }
 
     /**
      * Gets the number of bytes needed to pad the header to the alignment boundary.
      *
+     * @return the number of bytes needed to pad the header (0,1,2,3).
+     * @throws ArchiveException if a computation overflows an {@code int}.
      * @deprecated This method doesn't properly work for multi-byte encodings. And creates corrupt archives. Use {@link #getHeaderPadCount(Charset)} or
      *             {@link #getHeaderPadCount(long)} in any case.
-     * @return the number of bytes needed to pad the header (0,1,2,3)
      */
     @Deprecated
-    public int getHeaderPadCount() {
+    public int getHeaderPadCount() throws ArchiveException {
         return getHeaderPadCount(null);
     }
 
@@ -534,10 +535,11 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * Gets the number of bytes needed to pad the header to the alignment boundary.
      *
      * @param charset The character set used to encode the entry name in the stream.
-     * @return the number of bytes needed to pad the header (0,1,2,3)
+     * @return the number of bytes needed to pad the header (0,1,2,3).
+     * @throws ArchiveException if a computation overflows an {@code int}.
      * @since 1.18
      */
-    public int getHeaderPadCount(final Charset charset) {
+    public int getHeaderPadCount(final Charset charset) throws ArchiveException {
         if (name == null) {
             return 0;
         }
@@ -551,31 +553,32 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * Gets the number of bytes needed to pad the header to the alignment boundary.
      *
      * @param nameSize The length of the name in bytes, as read in the stream. Without the trailing zero byte.
-     * @return the number of bytes needed to pad the header (0,1,2,3)
+     * @return the number of bytes needed to pad the header (0,1,2,3).
+     * @throws ArchiveException if a computation overflows an {@code int}.
      * @since 1.18
      */
-    public int getHeaderPadCount(final long nameSize) {
-        if (this.alignmentBoundary == 0) {
+    public int getHeaderPadCount(final long nameSize) throws ArchiveException {
+        if (alignmentBoundary == 0) {
             return 0;
         }
-        int size = this.headerSize + 1; // Name has terminating null
+        int size = headerSize + 1; // Name has terminating null
         if (name != null) {
-            size = ExactMath.add(size, nameSize);
+            size = ArchiveException.addExact(size, nameSize);
         }
-        final int remain = size % this.alignmentBoundary;
+        final int remain = size % alignmentBoundary;
         if (remain > 0) {
-            return this.alignmentBoundary - remain;
+            return alignmentBoundary - remain;
         }
         return 0;
     }
 
     /**
-     * Gets the header size for this CPIO format
+     * Gets the header size for this CPIO format.
      *
      * @return the header size in bytes.
      */
     public int getHeaderSize() {
-        return this.headerSize;
+        return headerSize;
     }
 
     /**
@@ -584,7 +587,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * @return the inode.
      */
     public long getInode() {
-        return this.inode;
+        return inode;
     }
 
     @Override
@@ -612,7 +615,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      */
     @Override
     public String getName() {
-        return this.name;
+        return name;
     }
 
     /**
@@ -632,7 +635,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      */
     public long getRemoteDevice() {
         checkOldFormat();
-        return this.rmin;
+        return rmin;
     }
 
     /**
@@ -643,7 +646,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      */
     public long getRemoteDeviceMaj() {
         checkNewFormat();
-        return this.rmaj;
+        return rmaj;
     }
 
     /**
@@ -654,7 +657,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      */
     public long getRemoteDeviceMin() {
         checkNewFormat();
-        return this.rmin;
+        return rmin;
     }
 
     /**
@@ -665,7 +668,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      */
     @Override
     public long getSize() {
-        return this.fileSize;
+        return fileSize;
     }
 
     /**
@@ -674,7 +677,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * @return the time.
      */
     public long getTime() {
-        return this.mtime;
+        return mtime;
     }
 
     /**
@@ -683,7 +686,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * @return the user id.
      */
     public long getUID() {
-        return this.uid;
+        return uid;
     }
 
     /*
@@ -846,9 +849,8 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
         case C_ISNWK:
             break;
         default:
-            throw new IllegalArgumentException("Unknown mode. " + "Full: " + Long.toHexString(mode) + " Masked: " + Long.toHexString(maskedMode));
+            throw new IllegalArgumentException("Unknown mode. Full: " + Long.toHexString(mode) + " Masked: " + Long.toHexString(maskedMode));
         }
-
         this.mode = mode;
     }
 
@@ -921,7 +923,7 @@ public class CpioArchiveEntry implements CpioConstants, ArchiveEntry {
      * @param time The time to set.
      */
     public void setTime(final FileTime time) {
-        this.mtime = TimeUtils.toUnixTime(time);
+        this.mtime = FileTimes.toUnixTime(time);
     }
 
     /**

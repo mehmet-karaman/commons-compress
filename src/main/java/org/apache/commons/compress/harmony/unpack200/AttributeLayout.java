@@ -25,6 +25,8 @@ import org.apache.commons.lang3.StringUtils;
 
 /**
  * Defines a layout that describes how an attribute will be transmitted.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class AttributeLayout implements IMatcher {
 
@@ -242,7 +244,7 @@ public class AttributeLayout implements IMatcher {
                 return pool.getValue(SegmentConstantPool.CP_DOUBLE, longIndex);
             }
         }
-        throw new Pack200Exception("Unknown layout encoding: " + layout);
+        throw new Pack200Exception("Unknown layout encoding: '%s'", layout);
     }
 
     private final int context;
@@ -285,6 +287,7 @@ public class AttributeLayout implements IMatcher {
      * @throws Pack200Exception Cannot have an unnamed layout.
      */
     public AttributeLayout(final String name, final int context, final String layout, final int index, final boolean isDefault) throws Pack200Exception {
+        Pack200Exception.requireNonNull(layout, "layout");
         this.index = index;
         this.context = context;
         if (index >= 0) {
@@ -293,10 +296,7 @@ public class AttributeLayout implements IMatcher {
             this.mask = 0;
         }
         if (context != CONTEXT_CLASS && context != CONTEXT_CODE && context != CONTEXT_FIELD && context != CONTEXT_METHOD) {
-            throw new Pack200Exception("Attribute context out of range: " + context);
-        }
-        if (layout == null) {
-            throw new Pack200Exception("Cannot have a null layout");
+            throw new Pack200Exception("Attribute context out of range: %d", context);
         }
         if (StringUtils.isEmpty(name)) {
             throw new Pack200Exception("Cannot have an unnamed layout");

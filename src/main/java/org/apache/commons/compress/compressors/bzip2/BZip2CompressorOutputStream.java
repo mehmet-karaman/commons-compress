@@ -23,6 +23,7 @@ import java.io.OutputStream;
 import java.util.Arrays;
 
 import org.apache.commons.compress.compressors.CompressorOutputStream;
+import org.apache.commons.io.IOUtils;
 
 /**
  * An output stream that compresses into the BZip2 format into another stream.
@@ -371,6 +372,7 @@ public class BZip2CompressorOutputStream extends CompressorOutputStream<OutputSt
      * Index of the last char in the block, so the block size == last + 1.
      */
     private int last;
+
     /**
      * Always: in the range 0 .. 9. The current block size is 100000 * this number.
      */
@@ -390,6 +392,7 @@ public class BZip2CompressorOutputStream extends CompressorOutputStream<OutputSt
     private int combinedCRC;
 
     private final int allowableBlockSize;
+
     /**
      * All memory intensive stuff.
      */
@@ -537,7 +540,7 @@ public class BZip2CompressorOutputStream extends CompressorOutputStream<OutputSt
 
     @Override
     public void finish() throws IOException {
-        if (!isClosed()) {
+        if (!isClosed() && !isFinished()) {
             try {
                 if (this.runLength > 0) {
                     writeRun();
@@ -548,6 +551,7 @@ public class BZip2CompressorOutputStream extends CompressorOutputStream<OutputSt
             } finally {
                 this.blockSorter = null;
                 this.data = null;
+                super.finish();
             }
         }
     }
@@ -666,7 +670,7 @@ public class BZip2CompressorOutputStream extends CompressorOutputStream<OutputSt
     /**
      * Returns the blocksize parameter specified at construction time.
      *
-     * @return the blocksize parameter specified at construction time
+     * @return the blocksize parameter specified at construction time.
      */
     public final int getBlockSize() {
         return this.blockSize100k;
@@ -676,7 +680,7 @@ public class BZip2CompressorOutputStream extends CompressorOutputStream<OutputSt
      * Writes magic bytes like BZ on the first position of the stream and bytes indicating the file-format, which is huffmanized, followed by a digit indicating
      * blockSize100k.
      *
-     * @throws IOException if the magic bytes could not been written
+     * @throws IOException if the magic bytes could not been written.
      */
     private void init() throws IOException {
         bsPutUByte('B');
@@ -1149,15 +1153,7 @@ public class BZip2CompressorOutputStream extends CompressorOutputStream<OutputSt
 
     @Override
     public void write(final byte[] buf, int offs, final int len) throws IOException {
-        if (offs < 0) {
-            throw new IndexOutOfBoundsException("offs(" + offs + ") < 0.");
-        }
-        if (len < 0) {
-            throw new IndexOutOfBoundsException("len(" + len + ") < 0.");
-        }
-        if (offs + len > buf.length) {
-            throw new IndexOutOfBoundsException("offs(" + offs + ") + len(" + len + ") > buf.length(" + buf.length + ").");
-        }
+        IOUtils.checkFromIndexSize(buf, offs, len);
         checkOpen();
         for (final int hi = offs + len; offs < hi;) {
             write0(buf[offs++]);

@@ -23,12 +23,15 @@ import java.io.File;
 import java.nio.file.Path;
 
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.file.PathUtils;
 
 /**
  * Generic file name utilities.
  *
  * @since 1.20
+ * @deprecated Use {@link PathUtils} and {@link FilenameUtils}.
  */
+@Deprecated
 public class FileNameUtils {
 
     /**
@@ -37,17 +40,14 @@ public class FileNameUtils {
      * Will return the file name itself if it doesn't contain any dots. All leading directories of the {@code file name} parameter are skipped.
      * </p>
      *
-     * @return the base name of file name
+     * @return the base name of file name.
      * @param path the path of the file to obtain the base name of.
      * @since 1.22
+     * @deprecated Use {@link PathUtils#getBaseName(Path)}.
      */
+    @Deprecated
     public static String getBaseName(final Path path) {
-        // TODO Use Commons IO 2.16.0
-        if (path == null) {
-            return null;
-        }
-        final Path fileName = path.getFileName();
-        return fileName != null ? FilenameUtils.removeExtension(fileName.toString()) : null;
+        return PathUtils.getBaseName(path);
     }
 
     /**
@@ -56,9 +56,9 @@ public class FileNameUtils {
      * Will return the file name itself if it doesn't contain any dots. All leading directories of the {@code file name} parameter are skipped.
      * </p>
      *
-     * @return the base name of file name
+     * @return the base name of file name.
      * @param fileName the name of the file to obtain the base name of.
-     * @deprecated No longer used, no replacement.
+     * @deprecated Use {@link FilenameUtils#removeExtension(String)}.
      */
     @Deprecated
     public static String getBaseName(final String fileName) {
@@ -71,36 +71,43 @@ public class FileNameUtils {
     /**
      * Gets the extension (i.e. the part after the last ".") of a file.
      * <p>
-     * Will return an empty string if the file name doesn't contain any dots. Only the last segment of a the file name is consulted - i.e. all leading
+     * Will return an empty string if the file name doesn't contain any dots. Only the last segment of the file name is consulted - i.e. all leading
      * directories of the {@code file name} parameter are skipped.
      * </p>
      *
-     * @return the extension of file name
+     * @return the extension of file name.
      * @param path the path of the file to obtain the extension of.
      * @since 1.22
+     * @deprecated Use {@link PathUtils#getExtension(Path)}.
      */
+    @Deprecated
     public static String getExtension(final Path path) {
-        // TODO Use Commons IO 2.17.0
-        if (path == null) {
-            return null;
-        }
-        final Path fileName = path.getFileName();
-        return fileName != null ? FilenameUtils.getExtension(fileName.toString()) : null;
+        return PathUtils.getExtension(path);
     }
 
     /**
      * Gets the extension (i.e. the part after the last ".") of a file.
      * <p>
-     * Will return an empty string if the file name doesn't contain any dots. Only the last segment of a the file name is consulted - i.e. all leading
+     * Will return an empty string if the file name doesn't contain any dots. Only the last segment of the file name is consulted - i.e. all leading
      * directories of the {@code fileName} parameter are skipped.
      * </p>
      *
-     * @return the extension of file name
+     * @return the extension of file name.
      * @param fileName the name of the file to obtain the extension of.
      * @deprecated Use {@link FilenameUtils#getExtension(String)}.
      */
     @Deprecated
     public static String getExtension(final String fileName) {
         return FilenameUtils.getExtension(fileName);
+    }
+
+    /**
+     * Constructs a new instance.
+     *
+     * @deprecated Will be removed in 2.0.
+     */
+    @Deprecated
+    public FileNameUtils() {
+        // Utility class
     }
 }

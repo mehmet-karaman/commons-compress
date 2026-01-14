@@ -19,6 +19,7 @@
 package org.apache.commons.compress;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.BufferedInputStream;
@@ -28,6 +29,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
@@ -81,19 +83,23 @@ public abstract class AbstractTest extends AbstractTempDirTest {
     }
 
     public static File getFile(final String path) throws IOException {
-        final URL url = AbstractTest.class.getClassLoader().getResource(path);
-        if (url == null) {
-            throw new FileNotFoundException("couldn't find " + path);
-        }
-        try {
-            return new File(url.toURI());
-        } catch (final URISyntaxException ex) {
-            throw new IOException(ex);
-        }
+        return new File(getURI(path));
     }
 
     public static Path getPath(final String path) throws IOException {
         return getFile(path).toPath();
+    }
+
+    public static URI getURI(final String resourceName) throws IOException {
+        final URL url = AbstractTest.class.getClassLoader().getResource(resourceName);
+        if (url == null) {
+            throw new FileNotFoundException("couldn't find " + resourceName);
+        }
+        try {
+            return url.toURI();
+        } catch (final URISyntaxException ex) {
+            throw new IOException(ex);
+        }
     }
 
     public static InputStream newInputStream(final String path) throws IOException {
@@ -118,7 +124,7 @@ public abstract class AbstractTest extends AbstractTempDirTest {
      * @param outputStream
      * @param fileName
      * @param inputFile
-     * @throws IOException
+     * @throws IOException if an I/O error occurs.
      * @throws FileNotFoundException
      */
     private <O extends ArchiveOutputStream<E>, E extends ArchiveEntry> void addArchiveEntry(final O outputStream, final String fileName, final File inputFile)
@@ -147,7 +153,7 @@ public abstract class AbstractTest extends AbstractTempDirTest {
      * @param inputStream
      * @param expected    list of expected entries or {@code null} if no check of names desired
      * @param cleanUp     Cleans up resources if true
-     * @return returns the created result file if cleanUp = false, or null otherwise
+     * @return the created result file if cleanUp = false, or null otherwise
      * @throws Exception
      */
     protected File checkArchiveContent(final ArchiveInputStream<?> inputStream, final List<String> expected, final boolean cleanUp) throws Exception {
@@ -217,6 +223,16 @@ public abstract class AbstractTest extends AbstractTempDirTest {
 
     protected void closeQuietly(final Closeable closeable) {
         IOUtils.closeQuietly(closeable);
+    }
+
+    protected <E extends ArchiveEntry> long consumeEntries(final ArchiveInputStream<E> in) throws IOException {
+        long count = 0;
+        E entry;
+        while ((entry = in.getNextEntry()) != null) {
+            count++;
+            assertNotNull(entry);
+        }
+        return count;
     }
 
     /**
@@ -312,7 +328,7 @@ public abstract class AbstractTest extends AbstractTempDirTest {
      * Override this method to change what is to be compared in the List. For example, size + name instead of just name.
      *
      * @param entry
-     * @return returns the entry name
+     * @return the entry name
      */
     protected String getExpectedString(final ArchiveEntry entry) {
         return entry.getName();

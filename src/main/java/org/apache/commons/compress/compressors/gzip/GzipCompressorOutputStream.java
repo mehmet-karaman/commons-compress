@@ -27,7 +27,9 @@ import java.util.zip.CRC32;
 import java.util.zip.Deflater;
 import java.util.zip.GZIPOutputStream;
 
+import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorOutputStream;
+import org.apache.commons.io.IOUtils;
 
 /**
  * Compressed output stream using the gzip format. This implementation improves over the standard {@link GZIPOutputStream} class by allowing the configuration
@@ -49,8 +51,8 @@ public class GzipCompressorOutputStream extends CompressorOutputStream<OutputStr
     /**
      * Creates a gzip compressed output stream with the default parameters.
      *
-     * @param out the stream to compress to
-     * @throws IOException if writing fails
+     * @param out the stream to compress to.
+     * @throws IOException if writing fails.
      */
     public GzipCompressorOutputStream(final OutputStream out) throws IOException {
         this(out, new GzipParameters());
@@ -59,9 +61,9 @@ public class GzipCompressorOutputStream extends CompressorOutputStream<OutputStr
     /**
      * Creates a gzip compressed output stream with the specified parameters.
      *
-     * @param out        the stream to compress to
-     * @param parameters the parameters to use
-     * @throws IOException if writing fails
+     * @param out        the stream to compress to.
+     * @param parameters the parameters to use.
+     * @throws IOException if writing fails.
      * @since 1.7
      */
     public GzipCompressorOutputStream(final OutputStream out, final GzipParameters parameters) throws IOException {
@@ -94,8 +96,8 @@ public class GzipCompressorOutputStream extends CompressorOutputStream<OutputStr
     /**
      * Finishes writing compressed data to the underlying stream without closing it.
      *
+     * @throws IOException on error.
      * @since 1.7
-     * @throws IOException on error
      */
     @Override
     public void finish() throws IOException {
@@ -126,9 +128,10 @@ public class GzipCompressorOutputStream extends CompressorOutputStream<OutputStr
      */
     @Override
     public void write(final byte[] buffer, final int offset, final int length) throws IOException {
+        IOUtils.checkFromIndexSize(buffer, offset, length);
         checkOpen();
         if (deflater.finished()) {
-            throw new IOException("Cannot write more data, the end of the compressed data stream has been reached.");
+            throw new CompressorException("Cannot write more data, the end of the compressed data stream has been reached.");
         }
         if (length > 0) {
             deflater.setInput(buffer, offset, length);
@@ -170,26 +173,26 @@ public class GzipCompressorOutputStream extends CompressorOutputStream<OutputStr
         buffer.put((byte) GzipUtils.ID1);
         buffer.put((byte) GzipUtils.ID2);
         buffer.put((byte) Deflater.DEFLATED); // compression method (8: deflate)
-        buffer.put((byte) ((extra != null ? GzipUtils.FEXTRA : 0)
-                | (fileName != null ? GzipUtils.FNAME : 0)
-                | (comment != null ? GzipUtils.FCOMMENT : 0)
-                | (parameters.getHeaderCRC() ? GzipUtils.FHCRC : 0)
+        buffer.put((byte) ((extra != null ? FLG.FEXTRA : 0)
+                | (fileName != null ? FLG.FNAME : 0)
+                | (comment != null ? FLG.FCOMMENT : 0)
+                | (parameters.getHeaderCRC() ? FLG.FHCRC : 0)
         )); // flags
         buffer.putInt((int) parameters.getModificationInstant().getEpochSecond());
         // extra flags
         final int compressionLevel = parameters.getCompressionLevel();
         if (compressionLevel == Deflater.BEST_COMPRESSION) {
-            buffer.put(GzipUtils.XFL_MAX_COMPRESSION);
+            buffer.put(XFL.MAX_COMPRESSION);
         } else if (compressionLevel == Deflater.BEST_SPEED) {
-            buffer.put(GzipUtils.XFL_MAX_SPEED);
+            buffer.put(XFL.MAX_SPEED);
         } else {
-            buffer.put(GzipUtils.XFL_UNKNOWN);
+            buffer.put(XFL.UNKNOWN);
         }
         buffer.put((byte) parameters.getOperatingSystem());
         out.write(buffer.array());
         crc.update(buffer.array());
         if (extra != null) {
-            out.write(extra.length & 0xff); // little endian
+            out.write(extra.length & 0xff); // little-endian
             out.write(extra.length >>> 8 & 0xff);
             out.write(extra);
             crc.update(extra.length & 0xff);

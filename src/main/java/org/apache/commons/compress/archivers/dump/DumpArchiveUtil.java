@@ -21,6 +21,7 @@ package org.apache.commons.compress.archivers.dump;
 import java.io.IOException;
 import java.util.Arrays;
 
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.archivers.zip.ZipEncoding;
 import org.apache.commons.compress.utils.ByteUtils;
 
@@ -32,8 +33,8 @@ final class DumpArchiveUtil {
     /**
      * Calculate checksum for buffer.
      *
-     * @param buffer buffer containing tape segment header
-     * @return checksum
+     * @param buffer buffer containing tape segment header.
+     * @return checksum.
      */
     public static int calculateChecksum(final byte[] buffer) {
         int calc = 0;
@@ -80,10 +81,10 @@ final class DumpArchiveUtil {
      * Decodes a byte array to a string.
      */
     static String decode(final ZipEncoding encoding, final byte[] b, final int offset, final int len) throws IOException {
-            if (offset > offset + len) {
-                throw new IOException("Invalid offset/length combination");
-            }
-            return encoding.decode(Arrays.copyOfRange(b, offset, offset + len));
+        if (offset > offset + len) {
+            throw new ArchiveException("Invalid offset/length combination");
+        }
+        return encoding.decode(Arrays.copyOfRange(b, offset, offset + len));
     }
 
     /**

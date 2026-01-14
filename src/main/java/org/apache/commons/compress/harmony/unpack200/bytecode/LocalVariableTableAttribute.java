@@ -27,12 +27,19 @@ import java.util.List;
 import org.apache.commons.compress.harmony.pack200.Pack200Exception;
 
 /**
- * Local variable table
+ * Local variable table.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class LocalVariableTableAttribute extends BCIRenumberedAttribute {
 
     private static CPUTF8 attributeName;
 
+    /**
+     * Sets the attribute name.
+     *
+     * @param cpUTF8Value the attribute name.
+     */
     public static void setAttributeName(final CPUTF8 cpUTF8Value) {
         attributeName = cpUTF8Value;
     }
@@ -48,6 +55,16 @@ public class LocalVariableTableAttribute extends BCIRenumberedAttribute {
 
     private int codeLength;
 
+    /**
+     * Constructs a new LocalVariableTableAttribute.
+     *
+     * @param localVariableTableLength the table length.
+     * @param startPcs the start program counters.
+     * @param lengths the lengths.
+     * @param names the variable names.
+     * @param descriptors the descriptors.
+     * @param indexes the indexes.
+     */
     public LocalVariableTableAttribute(final int localVariableTableLength, final int[] startPcs, final int[] lengths, final CPUTF8[] names,
             final CPUTF8[] descriptors, final int[] indexes) {
         super(attributeName);
@@ -147,6 +164,11 @@ public class LocalVariableTableAttribute extends BCIRenumberedAttribute {
         }
     }
 
+    /**
+     * Sets the code length.
+     *
+     * @param length the code length.
+     */
     public void setCodeLength(final int length) {
         codeLength = length;
     }

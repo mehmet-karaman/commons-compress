@@ -25,12 +25,13 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Locale;
 import java.util.Objects;
 
 import org.apache.commons.compress.archivers.sevenz.SevenZFile;
 import org.apache.commons.compress.archivers.tar.TarFile;
 import org.apache.commons.compress.archivers.zip.ZipFile;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Simple command line application that lists the contents of an archive.
@@ -76,7 +77,7 @@ public final class Lister {
      * @throws IOException      an I/O exception.
      */
     public static void main(final String... args) throws ArchiveException, IOException {
-        if (args == null || args.length == 0) {
+        if (ArrayUtils.isEmpty(args)) {
             usage();
             return;
         }
@@ -118,7 +119,7 @@ public final class Lister {
         if (!Files.isRegularFile(file)) {
             System.err.println(file + " doesn't exist or is a directory");
         }
-        final String format = (args.length > 1 ? args[1] : detectFormat(file)).toLowerCase(Locale.ROOT);
+        final String format = StringUtils.toRootLowerCase(args.length > 1 ? args[1] : detectFormat(file));
         println("Detected format " + format);
         switch (format) {
         case ArchiveStreamFactory.SEVEN_Z:
@@ -154,7 +155,7 @@ public final class Lister {
     }
 
     private  void listZipUsingTarFile(final Path file) throws IOException {
-        try (TarFile tarFile = new TarFile(file)) {
+        try (TarFile tarFile = TarFile.builder().setPath(file).get()) {
             println("Created " + tarFile);
             tarFile.getEntries().forEach(this::println);
         }

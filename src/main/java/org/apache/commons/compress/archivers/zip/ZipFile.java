@@ -20,7 +20,6 @@ package org.apache.commons.compress.archivers.zip;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
-import java.io.Closeable;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
@@ -39,7 +38,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -51,19 +49,21 @@ import java.util.stream.IntStream;
 import java.util.zip.Inflater;
 import java.util.zip.ZipException;
 
+import org.apache.commons.compress.archivers.AbstractArchiveBuilder;
+import org.apache.commons.compress.archivers.ArchiveException;
+import org.apache.commons.compress.archivers.ArchiveFile;
 import org.apache.commons.compress.archivers.EntryStreamOffsets;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.deflate64.Deflate64CompressorInputStream;
+import org.apache.commons.compress.compressors.xz.XZCompressorInputStream;
 import org.apache.commons.compress.compressors.zstandard.ZstdCompressorInputStream;
+import org.apache.commons.compress.utils.ArchiveUtils;
 import org.apache.commons.compress.utils.BoundedArchiveInputStream;
 import org.apache.commons.compress.utils.BoundedSeekableByteChannelInputStream;
-import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.compress.utils.InputStreamStatistics;
-import org.apache.commons.compress.utils.SeekableInMemoryByteChannel;
-import org.apache.commons.io.Charsets;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.build.AbstractOrigin.ByteArrayOrigin;
-import org.apache.commons.io.build.AbstractStreamBuilder;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.function.IOFunction;
 import org.apache.commons.io.function.IOStream;
 import org.apache.commons.io.input.BoundedInputStream;
 
@@ -71,7 +71,7 @@ import org.apache.commons.io.input.BoundedInputStream;
  * Replacement for {@link java.util.zip.ZipFile}.
  * <p>
  * This class adds support for file name encodings other than UTF-8 (which is required to work on ZIP files created by native ZIP tools and is able to skip a
- * preamble like the one found in self extracting archives. Furthermore it returns instances of
+ * preamble like the one found in self extracting archives. Furthermore, it returns instances of
  * {@code org.apache.commons.compress.archivers.zip.ZipArchiveEntry} instead of {@link java.util.zip.ZipEntry}.
  * </p>
  * <p>
@@ -89,13 +89,13 @@ import org.apache.commons.io.input.BoundedInputStream;
  * <li>close is allowed to throw IOException.</li>
  * </ul>
  */
-public class ZipFile implements Closeable {
+public class ZipFile implements ArchiveFile<ZipArchiveEntry> {
 
     /**
      * Lock-free implementation of BoundedInputStream. The implementation uses positioned reads on the underlying archive file channel and therefore performs
      * significantly faster in concurrent environment.
      */
-    private static class BoundedFileChannelInputStream extends BoundedArchiveInputStream {
+    private static final class BoundedFileChannelInputStream extends BoundedArchiveInputStream {
         private final FileChannel archive;
 
         BoundedFileChannelInputStream(final long start, final long remaining, final FileChannel archive) {
@@ -117,10 +117,10 @@ public class ZipFile implements Closeable {
      * The channel will be opened for reading, assuming the specified encoding for file names.
      * </p>
      * <p>
-     * See {@link org.apache.commons.compress.utils.SeekableInMemoryByteChannel} to read from an in-memory archive.
+     * See {@link org.apache.commons.io.channels.ByteArraySeekableByteChannel} to read from an in-memory archive.
      * </p>
      * <p>
-     * By default the central directory record and all local file headers of the archive will be read immediately which may take a considerable amount of time
+     * By default, the central directory record and all local file headers of the archive will be read immediately which may take a considerable amount of time
      * when the archive is big. The {@code ignoreLocalFileHeader} parameter can be set to {@code true} which restricts parsing to the central directory.
      * Unfortunately the local file header may contain information not present inside of the central directory which will not be available when the argument is
      * set to {@code true}. This includes the content of the Unicode extra field, so setting {@code
@@ -129,14 +129,14 @@ public class ZipFile implements Closeable {
      *
      * @since 1.26.0
      */
-    public static class Builder extends AbstractStreamBuilder<ZipFile, Builder> {
+    public static class Builder extends AbstractArchiveBuilder<ZipFile, Builder> {
 
-        static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
-
-        private SeekableByteChannel seekableByteChannel;
+        private static final Charset DEFAULT_CHARSET = StandardCharsets.UTF_8;
         private boolean useUnicodeExtraFields = true;
         private boolean ignoreLocalFileHeader;
         private long maxNumberOfDisks = 1;
+        private String name;
+        private IOFunction<InputStream, InputStream> zstdInputStreamFactory;
 
         /**
          * Constructs a new instance.
@@ -144,29 +144,23 @@ public class ZipFile implements Closeable {
         public Builder() {
             setCharset(DEFAULT_CHARSET);
             setCharsetDefault(DEFAULT_CHARSET);
+            setOpenOptions(StandardOpenOption.READ);
         }
 
         @Override
         public ZipFile get() throws IOException {
-            final SeekableByteChannel actualChannel;
-            final String actualDescription;
-            if (seekableByteChannel != null) {
-                actualChannel = seekableByteChannel;
-                actualDescription = actualChannel.getClass().getSimpleName();
-            } else if (checkOrigin() instanceof ByteArrayOrigin) {
-                actualChannel = new SeekableInMemoryByteChannel(checkOrigin().getByteArray());
-                actualDescription = actualChannel.getClass().getSimpleName();
-            } else {
-                OpenOption[] openOptions = getOpenOptions();
-                if (openOptions.length == 0) {
-                    openOptions = new OpenOption[] { StandardOpenOption.READ };
+            return new ZipFile(this);
+        }
+
+        String getName() {
+            if (name == null) {
+                try {
+                    name = getPath().toAbsolutePath().toString();
+                } catch (final UnsupportedOperationException ex) {
+                    name = "unknown";
                 }
-                final Path path = getPath();
-                actualChannel = openZipChannel(path, maxNumberOfDisks, openOptions);
-                actualDescription = path.toString();
             }
-            final boolean closeOnError = seekableByteChannel != null;
-            return new ZipFile(actualChannel, actualDescription, getCharset(), useUnicodeExtraFields, closeOnError, ignoreLocalFileHeader);
+            return name;
         }
 
         /**
@@ -191,15 +185,21 @@ public class ZipFile implements Closeable {
             return this;
         }
 
+        Builder setName(final String name) {
+            this.name = name;
+            return this;
+        }
+
         /**
          * The actual channel, overrides any other input aspects like a File, Path, and so on.
          *
          * @param seekableByteChannel The actual channel.
          * @return {@code this} instance.
+         * @deprecated Since 1.29.0, use {@link #setChannel} instead.
          */
+        @Deprecated
         public Builder setSeekableByteChannel(final SeekableByteChannel seekableByteChannel) {
-            this.seekableByteChannel = seekableByteChannel;
-            return this;
+            return setChannel(seekableByteChannel);
         }
 
         /**
@@ -210,6 +210,22 @@ public class ZipFile implements Closeable {
          */
         public Builder setUseUnicodeExtraFields(final boolean useUnicodeExtraFields) {
             this.useUnicodeExtraFields = useUnicodeExtraFields;
+            return this;
+        }
+
+        /**
+         * Sets the factory {@link IOFunction} to create a Zstd {@link InputStream}. Defaults to
+         * {@link ZstdCompressorInputStream#ZstdCompressorInputStream(InputStream)}.
+         * <p>
+         * Call this method to plug in an alternate Zstd input stream implementation.
+         * </p>
+         *
+         * @param zstdInpStreamFactory the factory {@link IOFunction} to create a Zstd {@link InputStream}; {@code null} resets to the default.
+         * @return {@code this} instance.
+         * @since 1.28.0
+         */
+        public Builder setZstdInputStreamFactory(final IOFunction<InputStream, InputStream> zstdInpStreamFactory) {
+            this.zstdInputStreamFactory = zstdInpStreamFactory;
             return this;
         }
 
@@ -262,10 +278,6 @@ public class ZipFile implements Closeable {
             return getCompressedCount();
         }
     }
-
-    private static final String DEFAULT_CHARSET_NAME = StandardCharsets.UTF_8.name();
-
-    private static final EnumSet<StandardOpenOption> READ = EnumSet.of(StandardOpenOption.READ);
 
     private static final int HASH_SIZE = 509;
     static final int NIBLET_MASK = 0x0f;
@@ -485,25 +497,14 @@ public class ZipFile implements Closeable {
     /**
      * Closes a ZIP file quietly; throwing no IOException, does nothing on null input.
      *
-     * @param zipFile file to close, can be null
+     * @param zipFile file to close, can be null.
      */
     public static void closeQuietly(final ZipFile zipFile) {
-        org.apache.commons.io.IOUtils.closeQuietly(zipFile);
-    }
-
-    /**
-     * Creates a new SeekableByteChannel for reading.
-     *
-     * @param path the path to the file to open or create
-     * @return a new seekable byte channel
-     * @throws IOException if an I/O error occurs
-     */
-    private static SeekableByteChannel newReadByteChannel(final Path path) throws IOException {
-        return Files.newByteChannel(path, READ);
+        IOUtils.closeQuietly(zipFile);
     }
 
     private static SeekableByteChannel openZipChannel(final Path path, final long maxNumberOfDisks, final OpenOption[] openOptions) throws IOException {
-        final FileChannel channel = FileChannel.open(path, StandardOpenOption.READ);
+        final FileChannel channel = FileChannel.open(path, openOptions);
         try {
             final boolean is64 = positionAtEndOfCentralDirectoryRecord(channel);
             final long numberOfDisks;
@@ -523,7 +524,8 @@ public class ZipFile implements Closeable {
                 numberOfDisks = (buf.getShort() & 0xffff) + 1;
             }
             if (numberOfDisks > Math.min(maxNumberOfDisks, Integer.MAX_VALUE)) {
-                throw new IOException("Too many disks for zip archive, max=" + Math.min(maxNumberOfDisks, Integer.MAX_VALUE) + " actual=" + numberOfDisks);
+                throw new ArchiveException("Too many disks for zip archive, max = %,d actual = %,d", Math.min(maxNumberOfDisks, Integer.MAX_VALUE),
+                        numberOfDisks);
             }
 
             if (numberOfDisks <= 1) {
@@ -549,15 +551,15 @@ public class ZipFile implements Closeable {
                 return lowercase;
             }).collect(Collectors.toList()), openOptions);
         } catch (final Throwable ex) {
-            org.apache.commons.io.IOUtils.closeQuietly(channel);
+            IOUtils.closeQuietly(channel);
             throw ex;
         }
     }
 
     /**
-     * Searches for the and positions the stream at the start of the &quot;End of central dir record&quot;.
+     * Searches for the end positions the stream at the start of the &quot;End of central dir record&quot;.
      *
-     * @return true if it's Zip64 end of central directory or false if it's Zip32
+     * @return true if it's Zip64 end of central directory or false if it's Zip32.
      */
     private static boolean positionAtEndOfCentralDirectoryRecord(final SeekableByteChannel channel) throws IOException {
         final boolean found = tryToLocateSignature(channel, MIN_EOCD_SIZE, MAX_EOCD_SIZE, ZipArchiveOutputStream.EOCD_SIG);
@@ -567,7 +569,7 @@ public class ZipFile implements Closeable {
         boolean found64 = false;
         final long position = channel.position();
         if (position > ZIP64_EOCDL_LENGTH) {
-            final ByteBuffer wordBuf = ByteBuffer.allocate(4);
+            final ByteBuffer wordBuf = ByteBuffer.allocate(ZipConstants.WORD);
             channel.position(channel.position() - ZIP64_EOCDL_LENGTH);
             wordBuf.rewind();
             IOUtils.readFully(channel, wordBuf);
@@ -610,7 +612,7 @@ public class ZipFile implements Closeable {
      * <li>20 thru 255 - unused</li>
      * </ul>
      *
-     * @param versionMadeBy version/
+     * @param versionMadeBy version/.
      * @return a platform code.
      */
     static int toPlatform(final int versionMadeBy) {
@@ -720,6 +722,8 @@ public class ZipFile implements Closeable {
 
     private final ByteBuffer shortBbuf = ByteBuffer.wrap(shortBuf);
 
+    private final IOFunction<InputStream, InputStream> zstdInputStreamFactory;
+
     private long centralDirectoryStartDiskNumber;
 
     private long centralDirectoryStartRelativeOffset;
@@ -727,6 +731,39 @@ public class ZipFile implements Closeable {
     private long centralDirectoryStartOffset;
 
     private long firstLocalFileHeaderOffset;
+
+    private final int maxEntryNameLength;
+
+    private ZipFile(final Builder builder) throws IOException {
+        SeekableByteChannel archive;
+        try {
+            final Path path = builder.getPath();
+            archive = openZipChannel(path, builder.maxNumberOfDisks, builder.getOpenOptions());
+        } catch (final UnsupportedOperationException e) {
+            archive = builder.getChannel(SeekableByteChannel.class);
+        }
+        this.archive = archive;
+        try {
+            this.isSplitZipArchive = this.archive instanceof ZipSplitReadOnlySeekableByteChannel;
+            this.encoding = builder.getCharset();
+            this.zipEncoding = ZipEncodingHelper.getZipEncoding(encoding);
+            this.useUnicodeExtraFields = builder.useUnicodeExtraFields;
+            this.zstdInputStreamFactory = builder.zstdInputStreamFactory;
+            this.maxEntryNameLength = builder.getMaxEntryNameLength();
+            final Map<ZipArchiveEntry, NameAndComment> entriesWithoutUTF8Flag = populateFromCentralDirectory();
+            if (!builder.ignoreLocalFileHeader) {
+                resolveLocalFileHeaderData(entriesWithoutUTF8Flag);
+            }
+            fillNameMap();
+        } catch (final IOException e) {
+            final ArchiveException archiveException = e instanceof ArchiveException
+                    ? (ArchiveException) e
+                    : new ArchiveException("Error reading Zip content from " + builder.getName(), (Throwable) e);
+            this.closed = true;
+            IOUtils.close(archive, archiveException::addSuppressed);
+            throw archiveException;
+        }
+    }
 
     /**
      * Opens the given file for reading, assuming "UTF8" for file names.
@@ -737,40 +774,40 @@ public class ZipFile implements Closeable {
      */
     @Deprecated
     public ZipFile(final File file) throws IOException {
-        this(file, DEFAULT_CHARSET_NAME);
+        this(builder().setFile(file));
     }
 
     /**
      * Opens the given file for reading, assuming the specified encoding for file names and scanning for Unicode extra fields.
      *
      * @param file     the archive.
-     * @param encoding the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding the encoding to use for file names, use null for the platform's default encoding.
      * @throws IOException if an error occurs while reading the file.
      * @deprecated Use {@link Builder#get()}.
      */
     @Deprecated
     public ZipFile(final File file, final String encoding) throws IOException {
-        this(file.toPath(), encoding, true);
+        this(builder().setFile(file).setCharset(encoding));
     }
 
     /**
      * Opens the given file for reading, assuming the specified encoding for file names.
      *
      * @param file                  the archive.
-     * @param encoding              the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding              the encoding to use for file names, use null for the platform's default encoding.
      * @param useUnicodeExtraFields whether to use InfoZIP Unicode Extra Fields (if present) to set the file names.
      * @throws IOException if an error occurs while reading the file.
      * @deprecated Use {@link Builder#get()}.
      */
     @Deprecated
     public ZipFile(final File file, final String encoding, final boolean useUnicodeExtraFields) throws IOException {
-        this(file.toPath(), encoding, useUnicodeExtraFields, false);
+        this(builder().setFile(file).setCharset(encoding).setUseUnicodeExtraFields(useUnicodeExtraFields));
     }
 
     /**
      * Opens the given file for reading, assuming the specified encoding for file names.
      * <p>
-     * By default the central directory record and all local file headers of the archive will be read immediately which may take a considerable amount of time
+     * By default, the central directory record and all local file headers of the archive will be read immediately which may take a considerable amount of time
      * when the archive is big. The {@code ignoreLocalFileHeader} parameter can be set to {@code true} which restricts parsing to the central directory.
      * Unfortunately the local file header may contain information not present inside of the central directory which will not be available when the argument is
      * set to {@code true}. This includes the content of the Unicode extra field, so setting {@code
@@ -778,17 +815,16 @@ public class ZipFile implements Closeable {
      * </p>
      *
      * @param file                  the archive.
-     * @param encoding              the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding              the encoding to use for file names, use null for the platform's default encoding.
      * @param useUnicodeExtraFields whether to use InfoZIP Unicode Extra Fields (if present) to set the file names.
-     * @param ignoreLocalFileHeader whether to ignore information stored inside the local file header (see the notes in this method's Javadoc)
+     * @param ignoreLocalFileHeader whether to ignore information stored inside the local file header (see the notes in this method's Javadoc).
      * @throws IOException if an error occurs while reading the file.
      * @since 1.19
      * @deprecated Use {@link Builder#get()}.
      */
     @Deprecated
-    @SuppressWarnings("resource") // Caller closes
     public ZipFile(final File file, final String encoding, final boolean useUnicodeExtraFields, final boolean ignoreLocalFileHeader) throws IOException {
-        this(newReadByteChannel(file.toPath()), file.getAbsolutePath(), encoding, useUnicodeExtraFields, true, ignoreLocalFileHeader);
+        this(builder().setFile(file).setCharset(encoding).setUseUnicodeExtraFields(useUnicodeExtraFields).setIgnoreLocalFileHeader(ignoreLocalFileHeader));
     }
 
     /**
@@ -801,28 +837,28 @@ public class ZipFile implements Closeable {
      */
     @Deprecated
     public ZipFile(final Path path) throws IOException {
-        this(path, DEFAULT_CHARSET_NAME);
+        this(builder().setPath(path));
     }
 
     /**
      * Opens the given path for reading, assuming the specified encoding for file names and scanning for Unicode extra fields.
      *
      * @param path     path to the archive.
-     * @param encoding the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding the encoding to use for file names, use null for the platform's default encoding.
      * @throws IOException if an error occurs while reading the file.
      * @since 1.22
      * @deprecated Use {@link Builder#get()}.
      */
     @Deprecated
     public ZipFile(final Path path, final String encoding) throws IOException {
-        this(path, encoding, true);
+        this(builder().setPath(path).setCharset(encoding));
     }
 
     /**
      * Opens the given path for reading, assuming the specified encoding for file names.
      *
      * @param path                  path to the archive.
-     * @param encoding              the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding              the encoding to use for file names, use null for the platform's default encoding.
      * @param useUnicodeExtraFields whether to use InfoZIP Unicode Extra Fields (if present) to set the file names.
      * @throws IOException if an error occurs while reading the file.
      * @since 1.22
@@ -830,13 +866,13 @@ public class ZipFile implements Closeable {
      */
     @Deprecated
     public ZipFile(final Path path, final String encoding, final boolean useUnicodeExtraFields) throws IOException {
-        this(path, encoding, useUnicodeExtraFields, false);
+        this(builder().setPath(path).setCharset(encoding).setUseUnicodeExtraFields(useUnicodeExtraFields));
     }
 
     /**
      * Opens the given path for reading, assuming the specified encoding for file names.
      * <p>
-     * By default the central directory record and all local file headers of the archive will be read immediately which may take a considerable amount of time
+     * By default, the central directory record and all local file headers of the archive will be read immediately which may take a considerable amount of time
      * when the archive is big. The {@code ignoreLocalFileHeader} parameter can be set to {@code true} which restricts parsing to the central directory.
      * Unfortunately the local file header may contain information not present inside of the central directory which will not be available when the argument is
      * set to {@code true}. This includes the content of the Unicode extra field, so setting {@code
@@ -844,9 +880,9 @@ public class ZipFile implements Closeable {
      * </p>
      *
      * @param path                  path to the archive.
-     * @param encoding              the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding              the encoding to use for file names, use null for the platform's default encoding.
      * @param useUnicodeExtraFields whether to use InfoZIP Unicode Extra Fields (if present) to set the file names.
-     * @param ignoreLocalFileHeader whether to ignore information stored inside the local file header (see the notes in this method's Javadoc)
+     * @param ignoreLocalFileHeader whether to ignore information stored inside the local file header (see the notes in this method's Javadoc).
      * @throws IOException if an error occurs while reading the file.
      * @since 1.22
      * @deprecated Use {@link Builder#get()}.
@@ -854,13 +890,13 @@ public class ZipFile implements Closeable {
     @SuppressWarnings("resource") // Caller closes
     @Deprecated
     public ZipFile(final Path path, final String encoding, final boolean useUnicodeExtraFields, final boolean ignoreLocalFileHeader) throws IOException {
-        this(newReadByteChannel(path), path.toAbsolutePath().toString(), encoding, useUnicodeExtraFields, true, ignoreLocalFileHeader);
+        this(builder().setPath(path).setCharset(encoding).setUseUnicodeExtraFields(useUnicodeExtraFields).setIgnoreLocalFileHeader(ignoreLocalFileHeader));
     }
 
     /**
      * Opens the given channel for reading, assuming "UTF-8" for file names.
      * <p>
-     * {@link org.apache.commons.compress.utils.SeekableInMemoryByteChannel} allows you to read from an in-memory archive.
+     * {@link org.apache.commons.io.channels.ByteArraySeekableByteChannel} allows you to read from an in-memory archive.
      * </p>
      *
      * @param channel the archive.
@@ -870,60 +906,35 @@ public class ZipFile implements Closeable {
      */
     @Deprecated
     public ZipFile(final SeekableByteChannel channel) throws IOException {
-        this(channel, "a SeekableByteChannel", DEFAULT_CHARSET_NAME, true);
+        this(builder().setChannel(channel));
     }
 
     /**
      * Opens the given channel for reading, assuming the specified encoding for file names.
      * <p>
-     * {@link org.apache.commons.compress.utils.SeekableInMemoryByteChannel} allows you to read from an in-memory archive.
+     * {@link org.apache.commons.io.channels.ByteArraySeekableByteChannel} allows you to read from an in-memory archive.
      * </p>
      *
      * @param channel  the archive.
-     * @param encoding the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding the encoding to use for file names, use null for the platform's default encoding.
      * @throws IOException if an error occurs while reading the file.
      * @since 1.13
      * @deprecated Use {@link Builder#get()}.
      */
     @Deprecated
     public ZipFile(final SeekableByteChannel channel, final String encoding) throws IOException {
-        this(channel, "a SeekableByteChannel", encoding, true);
-    }
-
-    private ZipFile(final SeekableByteChannel channel, final String channelDescription, final Charset encoding, final boolean useUnicodeExtraFields,
-            final boolean closeOnError, final boolean ignoreLocalFileHeader) throws IOException {
-        this.isSplitZipArchive = channel instanceof ZipSplitReadOnlySeekableByteChannel;
-        this.encoding = Charsets.toCharset(encoding, Builder.DEFAULT_CHARSET);
-        this.zipEncoding = ZipEncodingHelper.getZipEncoding(encoding);
-        this.useUnicodeExtraFields = useUnicodeExtraFields;
-        this.archive = channel;
-        boolean success = false;
-        try {
-            final Map<ZipArchiveEntry, NameAndComment> entriesWithoutUTF8Flag = populateFromCentralDirectory();
-            if (!ignoreLocalFileHeader) {
-                resolveLocalFileHeaderData(entriesWithoutUTF8Flag);
-            }
-            fillNameMap();
-            success = true;
-        } catch (final IOException e) {
-            throw new IOException("Error reading Zip content from " + channelDescription, e);
-        } finally {
-            this.closed = !success;
-            if (!success && closeOnError) {
-                org.apache.commons.io.IOUtils.closeQuietly(archive);
-            }
-        }
+        this(builder().setChannel(channel).setCharset(encoding));
     }
 
     /**
      * Opens the given channel for reading, assuming the specified encoding for file names.
      * <p>
-     * {@link org.apache.commons.compress.utils.SeekableInMemoryByteChannel} allows you to read from an in-memory archive.
+     * {@link org.apache.commons.io.channels.ByteArraySeekableByteChannel} allows you to read from an in-memory archive.
      * </p>
      *
      * @param channel               the archive.
      * @param channelDescription    description of the archive, used for error messages only.
-     * @param encoding              the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding              the encoding to use for file names, use null for the platform's default encoding.
      * @param useUnicodeExtraFields whether to use InfoZIP Unicode Extra Fields (if present) to set the file names.
      * @throws IOException if an error occurs while reading the file.
      * @since 1.13
@@ -932,16 +943,16 @@ public class ZipFile implements Closeable {
     @Deprecated
     public ZipFile(final SeekableByteChannel channel, final String channelDescription, final String encoding, final boolean useUnicodeExtraFields)
             throws IOException {
-        this(channel, channelDescription, encoding, useUnicodeExtraFields, false, false);
+        this(builder().setChannel(channel).setName(channelDescription).setCharset(encoding).setUseUnicodeExtraFields(useUnicodeExtraFields));
     }
 
     /**
      * Opens the given channel for reading, assuming the specified encoding for file names.
      * <p>
-     * {@link org.apache.commons.compress.utils.SeekableInMemoryByteChannel} allows you to read from an in-memory archive.
+     * {@link org.apache.commons.io.channels.ByteArraySeekableByteChannel} allows you to read from an in-memory archive.
      * </p>
      * <p>
-     * By default the central directory record and all local file headers of the archive will be read immediately which may take a considerable amount of time
+     * By default, the central directory record and all local file headers of the archive will be read immediately which may take a considerable amount of time
      * when the archive is big. The {@code ignoreLocalFileHeader} parameter can be set to {@code true} which restricts parsing to the central directory.
      * Unfortunately the local file header may contain information not present inside of the central directory which will not be available when the argument is
      * set to {@code true}. This includes the content of the Unicode extra field, so setting {@code
@@ -950,9 +961,9 @@ public class ZipFile implements Closeable {
      *
      * @param channel               the archive.
      * @param channelDescription    description of the archive, used for error messages only.
-     * @param encoding              the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding              the encoding to use for file names, use null for the platform's default encoding.
      * @param useUnicodeExtraFields whether to use InfoZIP Unicode Extra Fields (if present) to set the file names.
-     * @param ignoreLocalFileHeader whether to ignore information stored inside the local file header (see the notes in this method's Javadoc)
+     * @param ignoreLocalFileHeader whether to ignore information stored inside the local file header (see the notes in this method's Javadoc).
      * @throws IOException if an error occurs while reading the file.
      * @since 1.19
      * @deprecated Use {@link Builder#get()}.
@@ -960,12 +971,8 @@ public class ZipFile implements Closeable {
     @Deprecated
     public ZipFile(final SeekableByteChannel channel, final String channelDescription, final String encoding, final boolean useUnicodeExtraFields,
             final boolean ignoreLocalFileHeader) throws IOException {
-        this(channel, channelDescription, encoding, useUnicodeExtraFields, false, ignoreLocalFileHeader);
-    }
-
-    private ZipFile(final SeekableByteChannel channel, final String channelDescription, final String encoding, final boolean useUnicodeExtraFields,
-            final boolean closeOnError, final boolean ignoreLocalFileHeader) throws IOException {
-        this(channel, channelDescription, Charsets.toCharset(encoding), useUnicodeExtraFields, closeOnError, ignoreLocalFileHeader);
+        this(builder().setChannel(channel).setName(channelDescription).setCharset(encoding).setUseUnicodeExtraFields(useUnicodeExtraFields)
+                .setIgnoreLocalFileHeader(ignoreLocalFileHeader));
     }
 
     /**
@@ -977,31 +984,31 @@ public class ZipFile implements Closeable {
      */
     @Deprecated
     public ZipFile(final String name) throws IOException {
-        this(new File(name).toPath(), DEFAULT_CHARSET_NAME);
+        this(builder().setFile(name));
     }
 
     /**
      * Opens the given file for reading, assuming the specified encoding for file names, scanning unicode extra fields.
      *
      * @param name     name of the archive.
-     * @param encoding the encoding to use for file names, use null for the platform's default encoding
+     * @param encoding the encoding to use for file names, use null for the platform's default encoding.
      * @throws IOException if an error occurs while reading the file.
      * @deprecated Use {@link Builder#get()}.
      */
     @Deprecated
     public ZipFile(final String name, final String encoding) throws IOException {
-        this(new File(name).toPath(), encoding, true);
+        this(builder().setFile(name).setCharset(encoding));
     }
 
     /**
-     * Whether this class is able to read the given entry.
+     * Tests whether this class is able to read the given entry.
      * <p>
      * May return false if it is set up to use encryption or a compression method that hasn't been implemented yet.
      * </p>
      *
-     * @since 1.1
-     * @param entry the entry
+     * @param entry the entry.
      * @return whether this class is able to read the given entry.
+     * @since 1.1
      */
     public boolean canReadEntryData(final ZipArchiveEntry entry) {
         return ZipUtil.canHandleEntryData(entry);
@@ -1027,9 +1034,9 @@ public class ZipFile implements Closeable {
      * This method transfers entries based on the central directory of the ZIP file.
      * </p>
      *
-     * @param target    The zipArchiveOutputStream to write the entries to
-     * @param predicate A predicate that selects which entries to write
-     * @throws IOException on error
+     * @param target    The zipArchiveOutputStream to write the entries to.
+     * @param predicate A predicate that selects which entries to write.
+     * @throws IOException on error.
      */
     public void copyRawEntries(final ZipArchiveOutputStream target, final ZipArchiveEntryPredicate predicate) throws IOException {
         final Enumeration<ZipArchiveEntry> src = getEntriesInPhysicalOrder();
@@ -1043,13 +1050,28 @@ public class ZipFile implements Closeable {
 
     /**
      * Creates new BoundedInputStream, according to implementation of underlying archive channel.
+     *
+     * @throws ArchiveException Thrown when the input hints at a corrupted archive.
      */
-    private BoundedArchiveInputStream createBoundedInputStream(final long start, final long remaining) {
-        if (start < 0 || remaining < 0 || start + remaining < start) {
-            throw new IllegalArgumentException("Corrupted archive, stream boundaries" + " are out of range");
+    private BoundedArchiveInputStream createBoundedInputStream(final long start, final long remaining) throws ArchiveException {
+        if (start < 0 || remaining < 0 || ArchiveException.addExact(start, remaining) < start) {
+            throw new ArchiveException("Corrupted archive, stream boundaries are out of range");
         }
         return archive instanceof FileChannel ? new BoundedFileChannelInputStream(start, remaining, (FileChannel) archive)
                 : new BoundedSeekableByteChannelInputStream(start, remaining, archive);
+    }
+
+    /**
+     * Creates an InputStream for the Zstd compression method.
+     *
+     * @param in the input stream which should be used for compression.
+     * @return the {@link InputStream} for handling the Zstd compression.
+     * @throws IOException if an I/O error occurs.
+     */
+    @SuppressWarnings("resource")
+    InputStream createZstdInputStream(final InputStream in) throws IOException {
+        // This method is the only location that references ZstdCompressorInputStream directly to avoid requiring the JAR for all use cases.
+        return zstdInputStreamFactory != null ? zstdInputStreamFactory.apply(in) : new ZstdCompressorInputStream(in);
     }
 
     private void fillNameMap() {
@@ -1083,9 +1105,10 @@ public class ZipFile implements Closeable {
      *
      * @return null if there is no content before the first local file header. Otherwise, returns a stream to read the content before the first local file
      *         header.
+     * @throws ArchiveException Thrown when the input hints at a corrupted archive.
      * @since 1.23
      */
-    public InputStream getContentBeforeFirstLocalFileHeader() {
+    public InputStream getContentBeforeFirstLocalFileHeader() throws ArchiveException {
         return firstLocalFileHeaderOffset == 0 ? null : createBoundedInputStream(0, firstLocalFileHeaderOffset);
     }
 
@@ -1113,8 +1136,10 @@ public class ZipFile implements Closeable {
      * Entries will be returned in the same order they appear within the archive's central directory.
      * </p>
      *
-     * @return all entries as {@link ZipArchiveEntry} instances
+     * @return all entries as {@link ZipArchiveEntry} instances.
+     * @deprecated Since 1.29.0, use {@link #entries()} or {@link #stream()}.
      */
+    @Deprecated
     public Enumeration<ZipArchiveEntry> getEntries() {
         return Collections.enumeration(entries);
     }
@@ -1123,7 +1148,7 @@ public class ZipFile implements Closeable {
      * Gets all named entries in the same order they appear within the archive's central directory.
      *
      * @param name name of the entry.
-     * @return the Iterable&lt;ZipArchiveEntry&gt; corresponding to the given name
+     * @return the Iterable&lt;ZipArchiveEntry&gt; corresponding to the given name.
      * @since 1.6
      */
     public Iterable<ZipArchiveEntry> getEntries(final String name) {
@@ -1136,7 +1161,7 @@ public class ZipFile implements Closeable {
      * Entries will be returned in the same order their contents appear within the archive.
      * </p>
      *
-     * @return all entries as {@link ZipArchiveEntry} instances
+     * @return all entries as {@link ZipArchiveEntry} instances.
      * @since 1.1
      */
     public Enumeration<ZipArchiveEntry> getEntriesInPhysicalOrder() {
@@ -1148,7 +1173,7 @@ public class ZipFile implements Closeable {
      * Gets all named entries in the same order their contents appear within the archive.
      *
      * @param name name of the entry.
-     * @return the Iterable&lt;ZipArchiveEntry&gt; corresponding to the given name
+     * @return the Iterable&lt;ZipArchiveEntry&gt; corresponding to the given name.
      * @since 1.6
      */
     public Iterable<ZipArchiveEntry> getEntriesInPhysicalOrder(final String name) {
@@ -1173,7 +1198,7 @@ public class ZipFile implements Closeable {
     /**
      * Gets the offset of the first local file header in the file.
      *
-     * @return the length of the content before the first local file header
+     * @return the length of the content before the first local file header.
      * @since 1.23
      */
     public long getFirstLocalFileHeaderOffset() {
@@ -1187,6 +1212,7 @@ public class ZipFile implements Closeable {
      * @return a stream to read the entry from. The returned stream implements {@link InputStreamStatistics}.
      * @throws IOException if unable to create an input stream from the zipEntry.
      */
+    @Override
     public InputStream getInputStream(final ZipArchiveEntry entry) throws IOException {
         if (!(entry instanceof Entry)) {
             return null;
@@ -1207,8 +1233,8 @@ public class ZipFile implements Closeable {
             try {
                 return new ExplodingInputStream(entry.getGeneralPurposeBit().getSlidingDictionarySize(),
                         entry.getGeneralPurposeBit().getNumberOfShannonFanoTrees(), is);
-            } catch (final IllegalArgumentException ex) {
-                throw new IOException("bad IMPLODE data", ex);
+            } catch (final IllegalArgumentException e) {
+                throw new ArchiveException("Bad IMPLODE data", (Throwable) e);
             }
         case DEFLATED:
             final Inflater inflater = new Inflater(true);
@@ -1233,7 +1259,9 @@ public class ZipFile implements Closeable {
             return new Deflate64CompressorInputStream(is);
         case ZSTD:
         case ZSTD_DEPRECATED:
-            return new ZstdCompressorInputStream(is);
+            return createZstdInputStream(is);
+        case XZ:
+            return new XZCompressorInputStream(is);
         case AES_ENCRYPTED:
         case EXPANDING_LEVEL_1:
         case EXPANDING_LEVEL_2:
@@ -1246,7 +1274,6 @@ public class ZipFile implements Closeable {
         case TOKENIZATION:
         case UNKNOWN:
         case WAVPACK:
-        case XZ:
         default:
             throw new UnsupportedZipFeatureException(ZipMethod.getMethodByCode(entry.getMethod()), entry);
         }
@@ -1262,10 +1289,10 @@ public class ZipFile implements Closeable {
      * {@code true} in the constructor. An IOException can also be thrown from the body of the method if this lookup fails for some reason.
      * </p>
      *
-     * @param entry The entry to get the stream for
+     * @param entry The entry to get the stream for.
      * @return The raw input stream containing (possibly) compressed data.
-     * @since 1.11
      * @throws IOException if there is a problem reading data offset (added in version 1.22).
+     * @since 1.11
      */
     public InputStream getRawInputStream(final ZipArchiveEntry entry) throws IOException {
         if (!(entry instanceof Entry)) {
@@ -1284,15 +1311,15 @@ public class ZipFile implements Closeable {
      * This method assumes the symbolic link's file name uses the same encoding that as been specified for this ZipFile.
      * </p>
      *
-     * @param entry ZipArchiveEntry object that represents the symbolic link
-     * @return entry's content as a String
-     * @throws IOException problem with content's input stream
+     * @param entry ZipArchiveEntry object that represents the symbolic link.
+     * @return entry's content as a String.
+     * @throws IOException problem with content's input stream.
      * @since 1.5
      */
     public String getUnixSymlink(final ZipArchiveEntry entry) throws IOException {
         if (entry != null && entry.isUnixSymlink()) {
             try (InputStream in = getInputStream(entry)) {
-                return zipEncoding.decode(org.apache.commons.io.IOUtils.toByteArray(in));
+                return zipEncoding.decode(IOUtils.toByteArray(in));
             }
         }
         return null;
@@ -1318,7 +1345,7 @@ public class ZipFile implements Closeable {
         long sig = ZipLong.getValue(wordBuf);
 
         if (sig != CFH_SIG && startsWithLocalFileHeader()) {
-            throw new IOException("Central directory is empty, can't expand" + " corrupt archive.");
+            throw new ArchiveException("Central directory is empty, can't expand corrupt archive.");
         }
 
         while (sig == CFH_SIG) {
@@ -1474,34 +1501,34 @@ public class ZipFile implements Closeable {
 
         long size = ZipLong.getValue(cfhBuf, off);
         if (size < 0) {
-            throw new IOException("broken archive, entry with negative compressed size");
+            throw new ArchiveException("Broken archive, entry with negative compressed size");
         }
         ze.setCompressedSize(size);
         off += ZipConstants.WORD;
 
         size = ZipLong.getValue(cfhBuf, off);
         if (size < 0) {
-            throw new IOException("broken archive, entry with negative size");
+            throw new ArchiveException("Broken archive, entry with negative size");
         }
         ze.setSize(size);
         off += ZipConstants.WORD;
 
-        final int fileNameLen = ZipShort.getValue(cfhBuf, off);
+        final int fileNameLen = ArchiveUtils.checkEntryNameLength(ZipShort.getValue(cfhBuf, off), maxEntryNameLength, "ZIP");
         off += ZipConstants.SHORT;
         if (fileNameLen < 0) {
-            throw new IOException("broken archive, entry with negative fileNameLen");
+            throw new ArchiveException("Broken archive, entry with negative fileNameLen");
         }
 
         final int extraLen = ZipShort.getValue(cfhBuf, off);
         off += ZipConstants.SHORT;
         if (extraLen < 0) {
-            throw new IOException("broken archive, entry with negative extraLen");
+            throw new ArchiveException("Broken archive, entry with negative extraLen");
         }
 
         final int commentLen = ZipShort.getValue(cfhBuf, off);
         off += ZipConstants.SHORT;
         if (commentLen < 0) {
-            throw new IOException("broken archive, entry with negative commentLen");
+            throw new ArchiveException("Broken archive, entry with negative commentLen");
         }
 
         ze.setDiskNumberStart(ZipShort.getValue(cfhBuf, off));
@@ -1513,7 +1540,7 @@ public class ZipFile implements Closeable {
         ze.setExternalAttributes(ZipLong.getValue(cfhBuf, off));
         off += ZipConstants.WORD;
 
-        final byte[] fileName = IOUtils.readRange(archive, fileNameLen);
+        final byte[] fileName = org.apache.commons.compress.utils.IOUtils.readRange(archive, fileNameLen);
         if (fileName.length < fileNameLen) {
             throw new EOFException();
         }
@@ -1524,22 +1551,20 @@ public class ZipFile implements Closeable {
         // data offset will be filled later
         entries.add(ze);
 
-        final byte[] cdExtraData = IOUtils.readRange(archive, extraLen);
+        final byte[] cdExtraData = org.apache.commons.compress.utils.IOUtils.readRange(archive, extraLen);
         if (cdExtraData.length < extraLen) {
             throw new EOFException();
         }
         try {
             ze.setCentralDirectoryExtra(cdExtraData);
         } catch (final RuntimeException e) {
-            final ZipException z = new ZipException("Invalid extra data in entry " + ze.getName());
-            z.initCause(e);
-            throw z;
+            throw ZipUtil.newZipException("Invalid extra data in entry " + ze.getName(), e);
         }
 
         setSizesAndOffsetFromZip64Extra(ze);
         sanityCheckLFHOffset(ze);
 
-        final byte[] comment = IOUtils.readRange(archive, commentLen);
+        final byte[] comment = org.apache.commons.compress.utils.IOUtils.readRange(archive, commentLen);
         if (comment.length < commentLen) {
             throw new EOFException();
         }
@@ -1566,18 +1591,15 @@ public class ZipFile implements Closeable {
             final int fileNameLen = lens[0];
             final int extraFieldLen = lens[1];
             skipBytes(fileNameLen);
-            final byte[] localExtraData = IOUtils.readRange(archive, extraFieldLen);
+            final byte[] localExtraData = org.apache.commons.compress.utils.IOUtils.readRange(archive, extraFieldLen);
             if (localExtraData.length < extraFieldLen) {
                 throw new EOFException();
             }
             try {
                 ze.setExtra(localExtraData);
             } catch (final RuntimeException e) {
-                final ZipException z = new ZipException("Invalid extra data in entry " + ze.getName());
-                z.initCause(e);
-                throw z;
+                throw ZipUtil.newZipException("Invalid extra data in entry " + ze.getName(), e);
             }
-
             if (entriesWithoutUTF8Flag.containsKey(ze)) {
                 final NameAndComment nc = entriesWithoutUTF8Flag.get(ze);
                 ZipUtil.setNameAndCommentFromExtraFields(ze, nc.name, nc.comment);
@@ -1587,20 +1609,20 @@ public class ZipFile implements Closeable {
 
     private void sanityCheckLFHOffset(final ZipArchiveEntry entry) throws IOException {
         if (entry.getDiskNumberStart() < 0) {
-            throw new IOException("broken archive, entry with negative disk number");
+            throw new ArchiveException("Broken archive, entry with negative disk number");
         }
         if (entry.getLocalHeaderOffset() < 0) {
-            throw new IOException("broken archive, entry with negative local file header offset");
+            throw new ArchiveException("Broken archive, entry with negative local file header offset");
         }
         if (isSplitZipArchive) {
             if (entry.getDiskNumberStart() > centralDirectoryStartDiskNumber) {
-                throw new IOException("local file header for " + entry.getName() + " starts on a later disk than central directory");
+                throw new ArchiveException("Local file header for '%s' starts on a later disk than central directory", entry.getName());
             }
             if (entry.getDiskNumberStart() == centralDirectoryStartDiskNumber && entry.getLocalHeaderOffset() > centralDirectoryStartRelativeOffset) {
-                throw new IOException("local file header for " + entry.getName() + " starts after central directory");
+                throw new ArchiveException("Local file header for '%s' starts after central directory", entry.getName());
             }
         } else if (entry.getLocalHeaderOffset() > centralDirectoryStartOffset) {
-            throw new IOException("local file header for " + entry.getName() + " starts after central directory");
+            throw new ArchiveException("Local file header for '%s' starts after central directory", entry.getName());
         }
     }
 
@@ -1622,7 +1644,7 @@ public class ZipFile implements Closeable {
         final int extraFieldLen = ZipShort.getValue(shortBuf);
         entry.setDataOffset(offset + LFH_OFFSET_FOR_FILENAME_LENGTH + ZipConstants.SHORT + ZipConstants.SHORT + fileNameLen + extraFieldLen);
         if (entry.getDataOffset() + entry.getCompressedSize() > centralDirectoryStartOffset) {
-            throw new IOException("data for " + entry.getName() + " overlaps with central directory.");
+            throw new ArchiveException("Data for '%s' overlaps with central directory.", entry.getName());
         }
         return new int[] { fileNameLen, extraFieldLen };
     }
@@ -1638,7 +1660,7 @@ public class ZipFile implements Closeable {
     private void setSizesAndOffsetFromZip64Extra(final ZipArchiveEntry entry) throws IOException {
         final ZipExtraField extra = entry.getExtraField(Zip64ExtendedInformationExtraField.HEADER_ID);
         if (extra != null && !(extra instanceof Zip64ExtendedInformationExtraField)) {
-            throw new ZipException("archive contains unparseable zip64 extra field");
+            throw new ZipException("Archive contains unparseable zip64 extra field");
         }
         final Zip64ExtendedInformationExtraField z64 = (Zip64ExtendedInformationExtraField) extra;
         if (z64 != null) {
@@ -1651,7 +1673,7 @@ public class ZipFile implements Closeable {
             if (hasUncompressedSize) {
                 final long size = z64.getSize().getLongValue();
                 if (size < 0) {
-                    throw new IOException("broken archive, entry with negative size");
+                    throw new ArchiveException("Broken archive, entry with negative size");
                 }
                 entry.setSize(size);
             } else if (hasCompressedSize) {
@@ -1661,7 +1683,7 @@ public class ZipFile implements Closeable {
             if (hasCompressedSize) {
                 final long size = z64.getCompressedSize().getLongValue();
                 if (size < 0) {
-                    throw new IOException("broken archive, entry with negative compressed size");
+                    throw new ArchiveException("Broken archive, entry with negative compressed size");
                 }
                 entry.setCompressedSize(size);
             } else if (hasUncompressedSize) {
@@ -1693,7 +1715,7 @@ public class ZipFile implements Closeable {
     /**
      * Sorts entries in place by offset.
      *
-     * @param allEntries entries to sort
+     * @param allEntries entries to sort.
      * @return the given entries, sorted.
      */
     private ZipArchiveEntry[] sortByOffset(final ZipArchiveEntry[] allEntries) {
@@ -1721,6 +1743,7 @@ public class ZipFile implements Closeable {
      * @throws IllegalStateException if the ZIP file has been closed.
      * @since 1.28.0
      */
+    @Override
     public IOStream<? extends ZipArchiveEntry> stream() {
         return IOStream.adapt(entries.stream());
     }

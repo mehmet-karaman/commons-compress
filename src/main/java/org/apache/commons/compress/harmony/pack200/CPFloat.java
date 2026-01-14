@@ -20,21 +20,33 @@ package org.apache.commons.compress.harmony.pack200;
 
 /**
  * Constant pool entry for a float.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPFloat extends CPConstant<CPFloat> {
 
-    private final float theFloat;
+    private final float value;
 
-    public CPFloat(final float theFloat) {
-        this.theFloat = theFloat;
+    /**
+     * Constructs a new instance.
+     *
+     * @param value The value.
+     */
+    public CPFloat(final float value) {
+        this.value = value;
     }
 
     @Override
     public int compareTo(final CPFloat obj) {
-        return Float.compare(theFloat, obj.theFloat);
+        return Float.compare(value, obj.value);
     }
 
+    /**
+     * Gets the float value.
+     *
+     * @return the float value.
+     */
     public float getFloat() {
-        return theFloat;
+        return value;
     }
 }

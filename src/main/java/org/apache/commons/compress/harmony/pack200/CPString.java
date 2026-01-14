@@ -20,15 +20,22 @@ package org.apache.commons.compress.harmony.pack200;
 
 /**
  * Constant pool entry for a String.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPString extends CPConstant<CPString> {
 
     private final String string;
-    private final CPUTF8 utf8;
+    private final CPUTF8 value;
 
-    public CPString(final CPUTF8 utf8) {
-        this.utf8 = utf8;
-        this.string = utf8.getUnderlyingString();
+    /**
+     * Constructs a new instance.
+     *
+     * @param value The value.
+     */
+    public CPString(final CPUTF8 value) {
+        this.value = value;
+        this.string = value.getUnderlyingString();
     }
 
     @Override
@@ -36,8 +43,13 @@ public class CPString extends CPConstant<CPString> {
         return string.compareTo(arg0.string);
     }
 
+    /**
+     * Gets the index in the CP UTF8 pool.
+     *
+     * @return the index.
+     */
     public int getIndexInCpUtf8() {
-        return utf8.getIndex();
+        return value.getIndex();
     }
 
     @Override

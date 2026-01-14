@@ -20,38 +20,50 @@ package org.apache.commons.compress.harmony.unpack200.bytecode.forms;
 
 import java.util.Arrays;
 
+import org.apache.commons.compress.harmony.pack200.Pack200Exception;
 import org.apache.commons.compress.harmony.unpack200.bytecode.ByteCode;
 import org.apache.commons.compress.harmony.unpack200.bytecode.OperandManager;
 
+/**
+ * Lookup switch instruction form.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
+ */
 public class LookupSwitchForm extends SwitchForm {
 
+    /**
+     * Constructs a new instance with the specified opcode, name, operandType and rewrite.
+     *
+     * @param opcode  index corresponding to the opcode's value.
+     * @param name    String printable name of the opcode.
+     */
     public LookupSwitchForm(final int opcode, final String name) {
         super(opcode, name);
     }
 
     @Override
-    public void setByteCodeOperands(final ByteCode byteCode, final OperandManager operandManager, final int codeLength) {
+    public void setByteCodeOperands(final ByteCode byteCode, final OperandManager operandManager, final int codeLength) throws Pack200Exception {
         final int caseCount = operandManager.nextCaseCount();
         final int defaultPc = operandManager.nextLabel();
-        final int[] caseValues = new int[caseCount];
+        // Check all at once here for all arrays in this method to account for failures seen in GH CI.
+        Pack200Exception.checkIntArray(caseCount, 8);
+        final int[] caseValues = new int[Pack200Exception.checkIntArray(caseCount)];
         Arrays.setAll(caseValues, i -> operandManager.nextCaseValues());
-        final int[] casePcs = new int[caseCount];
+        final int[] casePcs = new int[Pack200Exception.checkIntArray(caseCount)];
         Arrays.setAll(casePcs, i -> operandManager.nextLabel());
-
-        final int[] labelsArray = new int[caseCount + 1];
+        final int[] labelsArray = new int[Pack200Exception.checkIntArray(caseCount + 1)];
         labelsArray[0] = defaultPc;
         System.arraycopy(casePcs, 0, labelsArray, 1, caseCount + 1 - 1);
         byteCode.setByteCodeTargets(labelsArray);
-
         // All this gets dumped into the rewrite bytes of the
         // poor bytecode.
-
+        //
         // Unlike most byte codes, the LookupSwitch is a
         // variable-sized bytecode. Because of this, the
         // rewrite array has to be defined here individually
         // for each bytecode, rather than in the ByteCodeForm
         // class.
-
+        //
         // First, there's the bytecode. Then there are 0-3
         // bytes of padding so that the first (default)
         // label is on a 4-byte offset.
@@ -59,31 +71,24 @@ public class LookupSwitchForm extends SwitchForm {
         final int rewriteSize = 1 + padLength + 4 // defaultbytes
                 + 4 // npairs
                 + 4 * caseValues.length + 4 * casePcs.length;
-
-        final int[] newRewrite = new int[rewriteSize];
+        final int[] newRewrite = new int[Pack200Exception.checkIntArray(rewriteSize)];
         int rewriteIndex = 0;
-
         // Fill in what we can now
         // opcode
         newRewrite[rewriteIndex++] = byteCode.getOpcode();
-
         // padding
-        for (int index = 0; index < padLength; index++) {
-            newRewrite[rewriteIndex++] = 0;
-        }
-
+        Arrays.fill(newRewrite, rewriteIndex, rewriteIndex + padLength, 0);
+        rewriteIndex += padLength;
         // defaultbyte
         // This gets overwritten by fixUpByteCodeTargets
         newRewrite[rewriteIndex++] = -1;
         newRewrite[rewriteIndex++] = -1;
         newRewrite[rewriteIndex++] = -1;
         newRewrite[rewriteIndex++] = -1;
-
         // npairs
         final int npairsIndex = rewriteIndex;
         setRewrite4Bytes(caseValues.length, npairsIndex, newRewrite);
         rewriteIndex += 4;
-
         // match-offset pairs
         // The caseValues aren't overwritten, but the
         // casePcs will get overwritten by fixUpByteCodeTargets

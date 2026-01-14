@@ -36,6 +36,8 @@ import org.apache.commons.compress.harmony.unpack200.bytecode.ConstantPoolEntry;
 
 /**
  * Inner Class Bands
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class IcBands extends BandSet {
 
@@ -49,7 +51,9 @@ public class IcBands extends BandSet {
     private Map<String, List<IcTuple>> outerClassToTuples;
 
     /**
-     * @param segment TODO
+     * Constructs a new IcBands instance.
+     *
+     * @param segment the segment.
      */
     public IcBands(final Segment segment) {
         super(segment);
@@ -57,6 +61,11 @@ public class IcBands extends BandSet {
         this.cpUTF8 = segment.getCpBands().getCpUTF8();
     }
 
+    /**
+     * Gets the IC tuples.
+     *
+     * @return the IC tuples.
+     */
     public IcTuple[] getIcTuples() {
         return icAll;
     }
@@ -172,7 +181,6 @@ public class IcBands extends BandSet {
                 icName[i] = cpUTF8[icNameInts[i] - 1];
             }
         }
-
         // Construct IC tuples
         icAll = new IcTuple[icThisClass.length];
         int index = 0;
@@ -201,21 +209,17 @@ public class IcBands extends BandSet {
         thisClassToTuple = new HashMap<>(allTuples.length);
         outerClassToTuples = new HashMap<>(allTuples.length);
         for (final IcTuple tuple : allTuples) {
-
             // generate mapping thisClassString -> IcTuple
             // presumably this relation is 1:1
             //
             final Object result = thisClassToTuple.put(tuple.thisClassString(), tuple);
             if (result != null) {
-                throw new Error("Collision detected in <thisClassString, IcTuple> mapping. " + "There are at least two inner clases with the same name.");
+                throw new Pack200Exception("Collision detected in <thisClassString, IcTuple> mapping. There are at least two inner clases with the same name.");
             }
-
             // generate mapping outerClassString -> IcTuple
             // this relation is 1:M
-
             // If it's not anon and the outer is not anon, it could be relevant
             if (!tuple.isAnonymous() && !tuple.outerIsAnonymous() || tuple.nestedExplicitFlagSet()) {
-
                 // add tuple to corresponding bucket
                 final String key = tuple.outerClassString();
                 outerClassToTuples.computeIfAbsent(key, k -> new ArrayList<>()).add(tuple);

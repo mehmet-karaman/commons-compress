@@ -29,6 +29,7 @@ import java.util.zip.Adler32;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -36,25 +37,25 @@ import org.junit.jupiter.api.Test;
  *
  * @see ChecksumCalculatingInputStream
  */
-public class ChecksumCalculatingInputStreamTest {
+class ChecksumCalculatingInputStreamTest {
 
     @Test
-    public void testClassInstantiationWithParameterBeingNullThrowsNullPointerExceptionOne() {
+    void testClassInstantiationWithParameterBeingNullThrowsNullPointerExceptionOne() {
         assertThrows(NullPointerException.class, () -> new ChecksumCalculatingInputStream(null, null));
     }
 
     @Test
-    public void testClassInstantiationWithParameterBeingNullThrowsNullPointerExceptionThree() {
+    void testClassInstantiationWithParameterBeingNullThrowsNullPointerExceptionThree() {
         assertThrows(NullPointerException.class, () -> new ChecksumCalculatingInputStream(new CRC32(), null));
     }
 
     @Test
-    public void testClassInstantiationWithParameterBeingNullThrowsNullPointerExceptionTwo() {
+    void testClassInstantiationWithParameterBeingNullThrowsNullPointerExceptionTwo() {
         assertThrows(NullPointerException.class, () -> new ChecksumCalculatingInputStream(null, new ByteArrayInputStream(new byte[1])));
     }
 
     @Test
-    public void testReadTakingByteArray() throws IOException {
+    void testReadTakingByteArray() throws IOException {
         final Adler32 adler32 = new Adler32();
         final byte[] byteArray = new byte[6];
         final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(byteArray);
@@ -67,7 +68,7 @@ public class ChecksumCalculatingInputStreamTest {
     }
 
     @Test
-    public void testReadTakingByteArraySanityCheck() throws IOException {
+    void testReadTakingByteArraySanityCheck() throws IOException {
         final Adler32 adler32 = new Adler32();
         final byte[] byteArray = new byte[6];
         final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(byteArray);
@@ -80,7 +81,7 @@ public class ChecksumCalculatingInputStreamTest {
     }
 
     @Test
-    public void testReadTakingNoArguments() throws IOException {
+    void testReadTakingNoArguments() throws IOException {
         final Adler32 adler32 = new Adler32();
         final byte[] byteArray = new byte[6];
         final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(byteArray);
@@ -96,7 +97,7 @@ public class ChecksumCalculatingInputStreamTest {
     }
 
     @Test
-    public void testReadTakingNoArgumentsSanityCheck() throws IOException {
+    void testReadTakingNoArgumentsSanityCheck() throws IOException {
         final Adler32 adler32 = new Adler32();
         final byte[] byteArray = new byte[6];
         final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(byteArray);
@@ -112,7 +113,7 @@ public class ChecksumCalculatingInputStreamTest {
     }
 
     @Test
-    public void testSkipReturningPositive() throws IOException {
+    void testSkipReturningPositive() throws IOException {
         final Adler32 adler32 = new Adler32();
         final byte[] byteArray = new byte[6];
         final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(byteArray);
@@ -124,7 +125,7 @@ public class ChecksumCalculatingInputStreamTest {
     }
 
     @Test
-    public void testSkipReturningPositiveSanityCheck() throws IOException {
+    void testSkipReturningPositiveSanityCheck() throws IOException {
         final Adler32 adler32 = new Adler32();
         final byte[] byteArray = new byte[6];
         final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(byteArray);
@@ -136,9 +137,9 @@ public class ChecksumCalculatingInputStreamTest {
     }
 
     @Test
-    public void testSkipReturningZero() throws IOException {
+    void testSkipReturningZero() throws IOException {
         final Adler32 adler32 = new Adler32();
-        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(ByteUtils.EMPTY_BYTE_ARRAY);
+        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(ArrayUtils.EMPTY_BYTE_ARRAY);
         try (ChecksumCalculatingInputStream checksumCalculatingInputStream = new ChecksumCalculatingInputStream(adler32, byteArrayInputStream)) {
             final long skipResult = checksumCalculatingInputStream.skip(60L);
             assertEquals(0L, skipResult);
@@ -147,9 +148,9 @@ public class ChecksumCalculatingInputStreamTest {
     }
 
     @Test
-    public void testSkipReturningZeroSanityCheck() throws IOException {
+    void testSkipReturningZeroSanityCheck() throws IOException {
         final Adler32 adler32 = new Adler32();
-        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(ByteUtils.EMPTY_BYTE_ARRAY);
+        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(ArrayUtils.EMPTY_BYTE_ARRAY);
         try (CheckedInputStream checksumCalculatingInputStream = new CheckedInputStream(byteArrayInputStream, adler32)) {
             final long skipResult = checksumCalculatingInputStream.skip(60L);
             assertEquals(0L, skipResult);

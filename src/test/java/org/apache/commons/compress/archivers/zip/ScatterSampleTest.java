@@ -30,10 +30,10 @@ import java.util.zip.ZipEntry;
 
 import org.apache.commons.compress.AbstractTempDirTest;
 import org.apache.commons.compress.parallel.InputStreamSupplier;
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
 
-public class ScatterSampleTest extends AbstractTempDirTest {
+class ScatterSampleTest extends AbstractTempDirTest {
 
     private void checkFile(final File result) throws IOException {
         try (ZipFile zipFile = ZipFile.builder().setFile(result).get()) {
@@ -41,7 +41,7 @@ public class ScatterSampleTest extends AbstractTempDirTest {
             assertEquals("test1.xml", archiveEntry1.getName());
             try (InputStream inputStream = zipFile.getInputStream(archiveEntry1)) {
                 final byte[] b = new byte[6];
-                final int i = IOUtils.readFully(inputStream, b);
+                final int i = IOUtils.read(inputStream, b);
                 assertEquals(5, i);
                 assertEquals('H', b[0]);
                 assertEquals('o', b[4]);
@@ -63,7 +63,7 @@ public class ScatterSampleTest extends AbstractTempDirTest {
     }
 
     @Test
-    public void testSample() throws Exception {
+    void testSample() throws Exception {
         final File result = createTempFile("testSample", "fe");
         createFile(result);
         checkFile(result);

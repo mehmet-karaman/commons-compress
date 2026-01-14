@@ -24,13 +24,23 @@ import java.util.Objects;
 
 /**
  * Abstract superclass for class file attributes
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public abstract class Attribute extends ClassFileEntry {
 
+    /**
+     * The attribute name.
+     */
     protected final CPUTF8 attributeName;
 
     private int attributeNameIndex;
 
+    /**
+     * Constructs a new instance for an attribute name.
+     *
+     * @param attributeName an attribute name.
+     */
     public Attribute(final CPUTF8 attributeName) {
         this.attributeName = attributeName;
     }
@@ -54,10 +64,20 @@ public abstract class Attribute extends ClassFileEntry {
         return Objects.equals(attributeName, other.attributeName);
     }
 
+    /**
+     * Gets the attribute name.
+     *
+     * @return the attribute name.
+     */
     protected CPUTF8 getAttributeName() {
         return attributeName;
     }
 
+    /**
+     * Gets the length.
+     *
+     * @return the length.
+     */
     protected abstract int getLength();
 
     /**
@@ -104,6 +124,12 @@ public abstract class Attribute extends ClassFileEntry {
         attributeNameIndex = pool.indexOf(attributeName);
     }
 
-    protected abstract void writeBody(DataOutputStream dos) throws IOException;
+    /**
+     * Writes this body to the given output stream.
+     *
+     * @param out the output stream.
+     * @throws IOException if an I/O error occurs.
+     */
+    protected abstract void writeBody(DataOutputStream out) throws IOException;
 
 }

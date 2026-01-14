@@ -58,6 +58,7 @@ import java.nio.charset.StandardCharsets;
  */
 @Deprecated
 public class CharsetNames {
+
     /**
      * ISO Latin Alphabet No. 1, a.k.a. ISO-LATIN-1.
      * <p>
@@ -128,4 +129,11 @@ public class CharsetNames {
      * @see <a href="https://docs.oracle.com/javase/8/docs/api/java/nio/charset/Charset.html">Standard charsets</a>
      */
     public static final String UTF_8 = StandardCharsets.UTF_8.name();
+
+    /**
+     * Constructs a new instance.
+     */
+    public CharsetNames() {
+        // empty
+    }
 }

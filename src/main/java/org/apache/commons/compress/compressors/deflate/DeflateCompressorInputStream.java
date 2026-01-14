@@ -25,6 +25,7 @@ import java.util.zip.InflaterInputStream;
 
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.utils.InputStreamStatistics;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 
 /**
@@ -43,9 +44,9 @@ public class DeflateCompressorInputStream extends CompressorInputStream implemen
     /**
      * Checks if the signature matches what is expected for a zlib / deflated file with the zlib header.
      *
-     * @param signature the bytes to check
-     * @param length    the number of bytes to check
-     * @return true, if this stream is zlib / deflate compressed with a header stream, false otherwise
+     * @param signature the bytes to check.
+     * @param length    the number of bytes to check.
+     * @return true, if this stream is zlib / deflate compressed with a header stream, false otherwise.
      * @since 1.10
      */
     public static boolean matches(final byte[] signature, final int length) {
@@ -61,7 +62,7 @@ public class DeflateCompressorInputStream extends CompressorInputStream implemen
     /**
      * Creates a new input stream that decompresses Deflate-compressed data from the specified input stream.
      *
-     * @param inputStream where to read the compressed data
+     * @param inputStream where to read the compressed data.
      */
     public DeflateCompressorInputStream(final InputStream inputStream) {
         this(inputStream, new DeflateParameters());
@@ -70,8 +71,8 @@ public class DeflateCompressorInputStream extends CompressorInputStream implemen
     /**
      * Creates a new input stream that decompresses Deflate-compressed data from the specified input stream.
      *
-     * @param inputStream where to read the compressed data
-     * @param parameters  parameters
+     * @param inputStream where to read the compressed data.
+     * @param parameters  parameters.
      */
     public DeflateCompressorInputStream(final InputStream inputStream, final DeflateParameters parameters) {
         inflater = new Inflater(!parameters.withZlibHeader());
@@ -110,12 +111,8 @@ public class DeflateCompressorInputStream extends CompressorInputStream implemen
         return ret;
     }
 
-    /** {@inheritDoc} */
     @Override
     public int read(final byte[] buf, final int off, final int len) throws IOException {
-        if (len == 0) {
-            return 0;
-        }
         final int ret = in.read(buf, off, len);
         count(ret);
         return ret;
@@ -124,6 +121,6 @@ public class DeflateCompressorInputStream extends CompressorInputStream implemen
     /** {@inheritDoc} */
     @Override
     public long skip(final long n) throws IOException {
-        return org.apache.commons.io.IOUtils.skip(in, n);
+        return IOUtils.skip(in, n);
     }
 }

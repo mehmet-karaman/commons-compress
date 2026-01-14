@@ -31,6 +31,7 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
+import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.utils.ByteUtils;
 import org.apache.commons.compress.utils.InputStreamStatistics;
@@ -72,8 +73,6 @@ import org.apache.commons.io.input.BoundedInputStream;
  */
 public class GzipCompressorInputStream extends CompressorInputStream implements InputStreamStatistics {
 
-    private static final IOConsumer<GzipCompressorInputStream> NOOP = IOConsumer.noop();
-
     // @formatter:off
     /**
      * Builds a new {@link GzipCompressorInputStream}.
@@ -96,6 +95,8 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
 
         /** True if decompressing multi-member streams. */
         private boolean decompressConcatenated;
+
+        private boolean ignoreExtraField = true;
 
         private Charset fileNameCharset = GzipUtils.GZIP_ENCODING;
 
@@ -130,7 +131,7 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
          * Sets whether we should allow decompressing multiple members.
          *
          * @param decompressConcatenated whether we should allow decompressing multiple members.
-         * @return this instance.
+         * @return {@code this} instance.
          */
         public Builder setDecompressConcatenated(final boolean decompressConcatenated) {
             this.decompressConcatenated = decompressConcatenated;
@@ -148,10 +149,22 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
          * </p>
          *
          * @param fileNameCharset the Charset to use for writing file names and comments, null maps to {@link GzipUtils#GZIP_ENCODING}.
-         * @return this instance.
+         * @return {@code this} instance.
          */
         public Builder setFileNameCharset(final Charset fileNameCharset) {
             this.fileNameCharset = fileNameCharset;
+            return this;
+        }
+
+        /**
+         * Sets whether to ignore extra fields. To best comply with gzip, this defaults to true.
+         *
+         * @param ignoreExtraFields whether to ignore extra fields.
+         * @return {@code this} instance.
+         * @since 1.29.0
+         */
+        public Builder setIgnoreExtraField(final boolean ignoreExtraFields) {
+            this.ignoreExtraField = ignoreExtraFields;
             return this;
         }
 
@@ -165,7 +178,7 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
          * </p>
          *
          * @param onMemberEnd The consumer.
-         * @return this instance.
+         * @return {@code this} instance.
          * @see GzipCompressorInputStream#getMetaData()
          */
         public Builder setOnMemberEnd(final IOConsumer<GzipCompressorInputStream> onMemberEnd) {
@@ -183,7 +196,7 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
          * </p>
          *
          * @param onMemberStart The consumer.
-         * @return this instance.
+         * @return {@code this} instance.
          * @see GzipCompressorInputStream#getMetaData()
          */
         public Builder setOnMemberStart(final IOConsumer<GzipCompressorInputStream> onMemberStart) {
@@ -191,6 +204,8 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
             return this;
         }
     }
+
+    private static final IOConsumer<GzipCompressorInputStream> NOOP = IOConsumer.noop();
 
     /**
      * Constructs a new builder of {@link GzipCompressorInputStream}.
@@ -205,9 +220,9 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
     /**
      * Checks if the signature matches what is expected for a .gz file.
      *
-     * @param signature the bytes to check
-     * @param length    the number of bytes to check
-     * @return true if this is a .gz stream, false otherwise
+     * @param signature the bytes to check.
+     * @param length    the number of bytes to check.
+     * @return true if this is a .gz stream, false otherwise.
      * @since 1.1
      */
     public static boolean matches(final byte[] signature, final int length) {
@@ -260,14 +275,30 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
 
     private final IOConsumer<GzipCompressorInputStream> onMemberEnd;
 
+    private final boolean ignoreExtraField;
+
+    @SuppressWarnings("resource") // caller closes
+    private GzipCompressorInputStream(final Builder builder) throws IOException {
+        countingStream = BoundedInputStream.builder().setInputStream(builder.getInputStream()).get();
+        // Mark support is strictly needed for concatenated files only,
+        // but it's simpler if it is always available.
+        in = countingStream.markSupported() ? countingStream : new BufferedInputStream(countingStream);
+        this.decompressConcatenated = builder.decompressConcatenated;
+        this.fileNameCharset = builder.fileNameCharset;
+        this.onMemberStart = builder.onMemberStart != null ? builder.onMemberStart : NOOP;
+        this.onMemberEnd = builder.onMemberEnd != null ? builder.onMemberEnd : NOOP;
+        this.ignoreExtraField = builder.ignoreExtraField;
+        init(true);
+    }
+
     /**
      * Constructs a new input stream that decompresses gzip-compressed data from the specified input stream.
      * <p>
      * This is equivalent to {@code GzipCompressorInputStream(inputStream, false)} and thus will not decompress concatenated .gz files.
      * </p>
      *
-     * @param inputStream the InputStream from which this object should be created of
-     * @throws IOException if the stream could not be created
+     * @param inputStream the InputStream from which this object should be created of.
+     * @throws IOException if the stream could not be created.
      */
     public GzipCompressorInputStream(final InputStream inputStream) throws IOException {
         this(builder().setInputStream(inputStream));
@@ -281,27 +312,14 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
      * {@code mark} isn't supported, the input position will be undefined.
      * </p>
      *
-     * @param inputStream            the InputStream from which this object should be created of
-     * @param decompressConcatenated if true, decompress until the end of the input; if false, stop after the first .gz member
-     * @throws IOException if the stream could not be created
+     * @param inputStream            the InputStream from which this object should be created of.
+     * @param decompressConcatenated if true, decompress until the end of the input; if false, stop after the first .gz member.
+     * @throws IOException if the stream could not be created.
      * @deprecated Use {@link Builder#get()}.
      */
     @Deprecated
     public GzipCompressorInputStream(final InputStream inputStream, final boolean decompressConcatenated) throws IOException {
         this(builder().setInputStream(inputStream).setDecompressConcatenated(decompressConcatenated));
-    }
-
-    @SuppressWarnings("resource") // caller closes
-    private GzipCompressorInputStream(final Builder builder) throws IOException {
-        countingStream = BoundedInputStream.builder().setInputStream(builder.getInputStream()).get();
-        // Mark support is strictly needed for concatenated files only,
-        // but it's simpler if it is always available.
-        in = countingStream.markSupported() ? countingStream : new BufferedInputStream(countingStream);
-        this.decompressConcatenated = builder.decompressConcatenated;
-        this.fileNameCharset = builder.fileNameCharset;
-        this.onMemberStart = builder.onMemberStart != null ? builder.onMemberStart : NOOP;
-        this.onMemberEnd = builder.onMemberEnd != null ? builder.onMemberEnd : NOOP;
-        init(true);
     }
 
     /**
@@ -331,9 +349,9 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
     }
 
     /**
-     * Provides the stream's meta data - may change with each stream when decompressing concatenated streams.
+     * Provides the stream's metadata - may change with each stream when decompressing concatenated streams.
      *
-     * @return the stream's meta data
+     * @return the stream's meta data.
      * @since 1.8
      */
     public GzipParameters getMetaData() {
@@ -352,7 +370,7 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
             return false;
         }
         if (magic0 != GzipUtils.ID1 || in.read() != GzipUtils.ID2) {
-            throw new IOException(isFirstMember ? "Input is not in the .gz format." : "Unexpected data after a valid .gz stream.");
+            throw new CompressorException(isFirstMember ? "Input is not in the .gz format." : "Unexpected data after a valid .gz stream.");
         }
         parameters = new GzipParameters();
         parameters.setFileNameCharset(fileNameCharset);
@@ -360,18 +378,18 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
         final DataInput inData = new DataInputStream(in);
         final int method = inData.readUnsignedByte();
         if (method != Deflater.DEFLATED) {
-            throw new IOException("Unsupported compression method " + method + " in the .gz header");
+            throw new CompressorException("Unsupported compression method %d in the .gz header", method);
         }
         final int flg = inData.readUnsignedByte();
-        if ((flg & GzipUtils.FRESERVED) != 0) {
-            throw new IOException("Reserved flags are set in the .gz header.");
+        if ((flg & FLG.FRESERVED) != 0) {
+            throw new CompressorException("Reserved flags are set in the .gz header.");
         }
         parameters.setModificationTime(ByteUtils.fromLittleEndian(inData, 4));
         switch (inData.readUnsignedByte()) { // extra flags
-        case GzipUtils.XFL_MAX_COMPRESSION:
+        case XFL.MAX_COMPRESSION:
             parameters.setCompressionLevel(Deflater.BEST_COMPRESSION);
             break;
-        case GzipUtils.XFL_MAX_SPEED:
+        case XFL.MAX_SPEED:
             parameters.setCompressionLevel(Deflater.BEST_SPEED);
             break;
         default:
@@ -380,19 +398,23 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
         }
         parameters.setOperatingSystem(inData.readUnsignedByte());
         // Extra field
-        if ((flg & GzipUtils.FEXTRA) != 0) {
+        if ((flg & FLG.FEXTRA) != 0) {
             int xlen = inData.readUnsignedByte();
             xlen |= inData.readUnsignedByte() << 8;
+            parameters.setExtraFieldXlen(xlen);
             final byte[] extra = new byte[xlen];
             inData.readFully(extra);
-            parameters.setExtraField(ExtraField.fromBytes(extra));
+            if (!ignoreExtraField) {
+                // Read the data but ignore it.
+                parameters.setExtraField(ExtraField.fromBytes(extra));
+            }
         }
         // Original file name
-        if ((flg & GzipUtils.FNAME) != 0) {
+        if ((flg & FLG.FNAME) != 0) {
             parameters.setFileName(new String(readToNull(inData), parameters.getFileNameCharset()));
         }
         // Comment
-        if ((flg & GzipUtils.FCOMMENT) != 0) {
+        if ((flg & FLG.FCOMMENT) != 0) {
             parameters.setComment(new String(readToNull(inData), parameters.getFileNameCharset()));
         }
         // Header "CRC16" which is actually a truncated CRC32 (which isn't
@@ -400,7 +422,7 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
         // sets this, so it's not worth trying to verify it. GNU gzip 1.4
         // doesn't support this field, but zlib seems to be able to at least
         // skip over it.
-        if ((flg & GzipUtils.FHCRC) != 0) {
+        if ((flg & FLG.FHCRC) != 0) {
             parameters.setHeaderCRC(true);
             inData.readShort();
         }
@@ -423,61 +445,55 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
      */
     @Override
     public int read(final byte[] b, int off, int len) throws IOException {
+        IOUtils.checkFromIndexSize(b, off, len);
         if (len == 0) {
             return 0;
         }
         if (endReached) {
             return -1;
         }
-
         int size = 0;
-
         while (len > 0) {
             if (inflater.needsInput()) {
                 // Remember the current position because we may need to
                 // rewind after reading too much input.
                 in.mark(buf.length);
-
                 bufUsed = in.read(buf);
                 if (bufUsed == -1) {
                     throw new EOFException();
                 }
-
                 inflater.setInput(buf, 0, bufUsed);
             }
-
             final int ret;
             try {
                 ret = inflater.inflate(b, off, len);
             } catch (final DataFormatException e) { // NOSONAR
-                throw new IOException("Gzip-compressed data is corrupt.", e);
+                throw new CompressorException("Gzip-compressed data is corrupt.", e);
             }
-
             crc.update(b, off, ret);
             off += ret;
             len -= ret;
             size += ret;
             count(ret);
-
             if (inflater.finished()) {
                 // We may have read too many bytes. Rewind the read
                 // position to match the actual amount used.
                 in.reset();
                 final int skipAmount = bufUsed - inflater.getRemaining();
                 if (IOUtils.skip(in, skipAmount) != skipAmount) {
-                    throw new IOException();
+                    throw new CompressorException("skip");
                 }
                 bufUsed = 0;
                 final DataInput inData = new DataInputStream(in);
                 // CRC32
                 final long trailerCrc = ByteUtils.fromLittleEndian(inData, 4);
                 if (trailerCrc != crc.getValue()) {
-                    throw new IOException("Gzip-compressed data is corrupt (CRC32 error).");
+                    throw new CompressorException("Gzip-compressed data is corrupt (CRC32 error).");
                 }
                 // Uncompressed size modulo 2^32, ISIZE in the RFC.
                 final long iSize = ByteUtils.fromLittleEndian(inData, 4);
                 if (iSize != (inflater.getBytesWritten() & 0xffffffffL)) {
-                    throw new IOException("Gzip-compressed data is corrupt (uncompressed size mismatch).");
+                    throw new CompressorException("Gzip-compressed data is corrupt (uncompressed size mismatch).");
                 }
                 parameters.setTrailerCrc(trailerCrc);
                 parameters.setTrailerISize(iSize);
@@ -491,7 +507,6 @@ public class GzipCompressorInputStream extends CompressorInputStream implements 
                 }
             }
         }
-
         return size;
     }
 }

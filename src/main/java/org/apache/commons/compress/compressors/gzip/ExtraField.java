@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.gzip.ExtraField.SubField;
 
 /**
@@ -37,17 +38,40 @@ import org.apache.commons.compress.compressors.gzip.ExtraField.SubField;
  * | XLEN  |...XLEN bytes of "extra field"...| (more...)
  * +---+---+=================================+
  * </pre>
- *
+ * <p>
  * This class represents the extra field payload (excluding the XLEN 2 bytes). The ExtraField payload consists of a series of subfields, each of the form:
+ * </p>
  *
  * <pre>
  * +---+---+---+---+==================================+
  * |SI1|SI2|  LEN  |... LEN bytes of subfield data ...|
  * +---+---+---+---+==================================+
  * </pre>
- *
+ * <p>
  * This class does not expose the internal subfields list to prevent adding subfields without total extra length validation. The class is iterable, but this
  * iterator is immutable.
+ * </p>
+ * <p>
+ * Additional documentation on extra fields in use:
+ * </p>
+ * <ul>
+ * <li>Apollo
+ * <pre>
+ *   SI1         SI2         Data
+ *   ----------  ----------  ----
+ *   0x41 ('A')  0x70 ('P')  Apollo file type information
+ * </pre>
+ * </li>
+ * <li>
+ * <a href="https://samtools.github.io/hts-specs/SAMv1.pdf">Sequence Alignment/Map Format Specification</a>: The BGZF compression format defines the extra
+ * field used by BGZF uses the two subfield ID values 66 and 67 (ASCII 'BC').
+ * <pre>
+ *   SI1         SI2         Data
+ *   ----------  ----------  ----
+ *   0x42 ('B')  0x43 ('C')  BGZF usage
+ * </pre>
+ * </li>
+ * </ul>
  *
  * @see <a href="https://datatracker.ietf.org/doc/html/rfc1952">RFC 1952 GZIP File Format Specification</a>
  * @since 1.28.0
@@ -109,7 +133,7 @@ public final class ExtraField implements Iterable<SubField> {
         }
 
         /**
-         * The 2 character ISO-8859-1 string made from the si1 and si2 bytes of the sub field id.
+         * The 2 character ISO-8859-1 string made from the si1 and si2 bytes of the subfield id.
          *
          * @return Two character ID.
          */
@@ -140,7 +164,24 @@ public final class ExtraField implements Iterable<SubField> {
 
     private static final byte[] ZERO_BYTES = {};
 
-    static ExtraField fromBytes(final byte[] bytes) throws IOException {
+    /**
+     * Converts {@code XLEN} length bytes of "extra field" into a new instance.
+     * <p>
+     * The bytes for the {@code XLEN} field is not included in the input.
+     * </p>
+     * The ExtraField payload consists of a series of subfields, each of the form:
+     *
+     * <pre>
+     * +---+---+---+---+==================================+
+     * |SI1|SI2|  LEN  |... LEN bytes of subfield data ...| (repeat for other subfields)
+     * +---+---+---+---+==================================+
+     * </pre>
+     *
+     * @param bytes without the {@code XLEN} field.
+     * @return a new instance.
+     * @throws CompressorException Thrown for a formatting problem.
+     */
+    static ExtraField fromBytes(final byte[] bytes) throws CompressorException {
         if (bytes == null) {
             return null;
         }
@@ -151,7 +192,8 @@ public final class ExtraField implements Iterable<SubField> {
             final byte si2 = bytes[pos++];
             final int sublen = bytes[pos++] & 0xff | (bytes[pos++] & 0xff) << 8;
             if (sublen > bytes.length - pos) {
-                throw new IOException("Extra subfield lenght exceeds remaining bytes in extra: " + sublen + " > " + (bytes.length - pos));
+                throw new CompressorException("Extra subfield length exceeds remaining bytes at subfield id = '%s%s': %,d > %,d", (char) (si1 & 0xff),
+                        (char) (si2 & 0xff), sublen, bytes.length - pos);
             }
             final byte[] payload = new byte[sublen];
             System.arraycopy(bytes, pos, payload, 0, sublen);
@@ -160,7 +202,7 @@ public final class ExtraField implements Iterable<SubField> {
             extra.totalSize = pos;
         }
         if (pos < bytes.length) {
-            throw new IOException("" + (bytes.length - pos) + " remaining bytes not used to parse an extra subfield.");
+            throw new CompressorException("%,d remaining bytes not used to parse an extra subfield.", bytes.length - pos);
         }
         return extra;
     }
@@ -180,14 +222,14 @@ public final class ExtraField implements Iterable<SubField> {
      *
      * @param id      The subfield ID.
      * @param payload The subfield payload.
-     * @return this instance.
+     * @return {@code this} instance.
      * @throws NullPointerException     if {@code id} is {@code null}.
      * @throws NullPointerException     if {@code payload} is {@code null}.
-     * @throws IllegalArgumentException if the subfield is not 2 characters or the payload is null
+     * @throws IllegalArgumentException if the subfield is not 2 characters or the payload is null.
      * @throws IOException              if appending this subfield would exceed the max size 65535 of the extra header.
      */
     public ExtraField addSubField(final String id, final byte[] payload) throws IOException {
-        Objects.requireNonNull(id, "payload");
+        Objects.requireNonNull(id, "id");
         Objects.requireNonNull(payload, "payload");
         if (id.length() != 2) {
             throw new IllegalArgumentException("Subfield id must be a 2 character ISO-8859-1 string.");
@@ -200,7 +242,7 @@ public final class ExtraField implements Iterable<SubField> {
         final SubField f = new SubField((byte) (si1 & 0xff), (byte) (si2 & 0xff), payload);
         final int len = 4 + payload.length;
         if (totalSize + len > MAX_SIZE) {
-            throw new IOException("Extra subfield '" + f.getId() + "' too big (extras total size is already at " + totalSize + ")");
+            throw new CompressorException("Extra subfield '%s' too big (extras total size is already at %,d", f.getId(), totalSize);
         }
         subFields.add(f);
         totalSize += len;
@@ -303,7 +345,7 @@ public final class ExtraField implements Iterable<SubField> {
         for (final SubField f : subFields) {
             ba[pos++] = f.si1;
             ba[pos++] = f.si2;
-            ba[pos++] = (byte) (f.payload.length & 0xff); // little endian expected
+            ba[pos++] = (byte) (f.payload.length & 0xff); // little-endian expected
             ba[pos++] = (byte) (f.payload.length >>> 8);
             System.arraycopy(f.payload, 0, ba, pos, f.payload.length);
             pos += f.payload.length;

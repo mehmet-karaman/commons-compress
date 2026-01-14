@@ -27,11 +27,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.zip.ZipException;
 
-import org.apache.commons.compress.utils.ByteUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class X7875_NewUnixTest {
+class X7875_NewUnixTest {
 
     private static final ZipShort X7875 = new ZipShort(0x7875);
 
@@ -80,7 +80,7 @@ public class X7875_NewUnixTest {
 
         assertEquals(0, xf.getCentralDirectoryLength().getValue());
         result = xf.getCentralDirectoryData();
-        assertArrayEquals(ByteUtils.EMPTY_BYTE_ARRAY, result);
+        assertArrayEquals(ArrayUtils.EMPTY_BYTE_ARRAY, result);
 
         // And now we re-parse:
         xf.parseFromCentralDirectoryData(result, 0, result.length);
@@ -91,12 +91,12 @@ public class X7875_NewUnixTest {
     }
 
     @Test
-    public void testGetHeaderId() {
+    void testGetHeaderId() {
         assertEquals(X7875, xf.getHeaderId());
     }
 
     @Test
-    public void testMisc() throws Exception {
+    void testMisc() throws Exception {
         assertNotEquals(xf, new Object());
         assertTrue(xf.toString().startsWith("0x7875 Zip Extra Field"));
         final Object o = xf.clone();
@@ -107,7 +107,7 @@ public class X7875_NewUnixTest {
     }
 
     @Test
-    public void testParseReparse() throws ZipException {
+    void testParseReparse() throws ZipException {
 
         // Version=1, Len=0, Len=0.
         final byte[] ZERO_LEN = { 1, 0, 0 };
@@ -164,7 +164,7 @@ public class X7875_NewUnixTest {
     }
 
     @Test
-    public void testSampleFile() throws Exception {
+    void testSampleFile() throws Exception {
         try (ZipFile zipFile = ZipFile.builder().setFile(getFile("COMPRESS-211_uid_gid_zip_test.zip")).get()) {
             // We expect EVERY entry of this ZIP file (dir & file) to
             // contain extra field 0x7875.
@@ -195,9 +195,9 @@ public class X7875_NewUnixTest {
     }
 
     @Test
-    public void testTrimLeadingZeroesForceMinLength4() {
+    void testTrimLeadingZeroesForceMinLength4() {
         final byte[] NULL = null;
-        final byte[] EMPTY = ByteUtils.EMPTY_BYTE_ARRAY;
+        final byte[] EMPTY = ArrayUtils.EMPTY_BYTE_ARRAY;
         final byte[] ONE_ZERO = { 0 };
         final byte[] TWO_ZEROES = { 0, 0 };
         final byte[] FOUR_ZEROES = { 0, 0, 0, 0 };

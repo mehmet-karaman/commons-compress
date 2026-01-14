@@ -27,10 +27,12 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.commons.io.IOUtils;
+
 /**
  * This class supports writing to an OutputStream or WritableByteChannel in fixed length blocks.
  * <p>
- * It can be be used to support output to devices such as tape drives that require output in this format. If the final block does not have enough content to
+ * It can be used to support output to devices such as tape drives that require output in this format. If the final block does not have enough content to
  * fill an entire block, the output will be padded to a full block size.
  * </p>
  *
@@ -94,10 +96,7 @@ public class FixedLengthBlockOutputStream extends OutputStream implements Writab
                 buffer.position(buffer.limit());
                 return len;
             } catch (final IOException e) {
-                try {
-                    close();
-                } catch (final IOException ignored) { // NOSONAR
-                }
+                IOUtils.closeQuietly(this);
                 throw e;
             }
         }
@@ -154,7 +153,7 @@ public class FixedLengthBlockOutputStream extends OutputStream implements Writab
     /**
      * Potentially pads and then writes the current block to the underlying stream.
      *
-     * @throws IOException if writing fails
+     * @throws IOException if writing fails.
      */
     public void flushBlock() throws IOException {
         if (buffer.position() != 0) {
@@ -202,6 +201,7 @@ public class FixedLengthBlockOutputStream extends OutputStream implements Writab
 
     @Override
     public void write(final byte[] b, final int offset, final int length) throws IOException {
+        IOUtils.checkFromIndexSize(b, offset, length);
         if (!isOpen()) {
             throw new ClosedChannelException();
         }
@@ -263,8 +263,7 @@ public class FixedLengthBlockOutputStream extends OutputStream implements Writab
         final int i = out.write(buffer);
         final boolean hasRemaining = buffer.hasRemaining();
         if (i != blockSize || hasRemaining) {
-            final String msg = String.format("Failed to write %,d bytes atomically. Only wrote  %,d", blockSize, i);
-            throw new IOException(msg);
+            throw new IOException(String.format("Failed to write %,d bytes atomically. Only wrote  %,d", blockSize, i));
         }
         buffer.clear();
     }

@@ -25,10 +25,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.regex.Pattern;
 
+import org.apache.commons.compress.MemoryLimitException;
+import org.apache.commons.compress.archivers.AbstractArchiveBuilder;
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.archivers.ArchiveInputStream;
 import org.apache.commons.compress.utils.ArchiveUtils;
-import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.compress.utils.ParsingUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
 
 /**
  * Implements the "ar" archive format as an input stream.
@@ -37,17 +41,38 @@ import org.apache.commons.compress.utils.ParsingUtils;
  */
 public class ArArchiveInputStream extends ArchiveInputStream<ArArchiveEntry> {
 
+    /**
+     * Builds a new {@link ArArchiveInputStream}.
+     * <p>
+     * For example:
+     * </p>
+     * <pre>{@code
+     * ArArchiveInputStream in = ArArchiveInputStream.builder()
+     *     .setPath(inputPath)
+     *     .get();
+     * }</pre>
+     *
+     * @since 1.29.0
+     */
+    public static final class Builder extends AbstractArchiveBuilder<ArArchiveInputStream, Builder> {
+
+        private Builder() {
+            setCharset(StandardCharsets.US_ASCII);
+        }
+
+        @Override
+        public ArArchiveInputStream get() throws IOException {
+            return new ArArchiveInputStream(this);
+        }
+    }
+
     // offsets and length of meta data parts
     private static final int NAME_OFFSET = 0;
     private static final int NAME_LEN = 16;
     private static final int LAST_MODIFIED_OFFSET = NAME_LEN;
-
     private static final int LAST_MODIFIED_LEN = 12;
-
     private static final int USER_ID_OFFSET = LAST_MODIFIED_OFFSET + LAST_MODIFIED_LEN;
-
     private static final int USER_ID_LEN = 6;
-
     private static final int GROUP_ID_OFFSET = USER_ID_OFFSET + USER_ID_LEN;
     private static final int GROUP_ID_LEN = 6;
     private static final int FILE_MODE_OFFSET = GROUP_ID_OFFSET + GROUP_ID_LEN;
@@ -59,6 +84,16 @@ public class ArArchiveInputStream extends ArchiveInputStream<ArArchiveEntry> {
     private static final Pattern BSD_LONGNAME_PATTERN = Pattern.compile("^" + BSD_LONGNAME_PREFIX + "\\d+");
     private static final String GNU_STRING_TABLE_NAME = "//";
     private static final Pattern GNU_LONGNAME_PATTERN = Pattern.compile("^/\\d+");
+
+    /**
+     * Creates a new builder.
+     *
+     * @return A new builder.
+     * @since 1.29.0
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
 
     /**
      * Does the name look like it is a long name (or a name containing spaces) as encoded by BSD ar?
@@ -100,33 +135,20 @@ public class ArArchiveInputStream extends ArchiveInputStream<ArArchiveEntry> {
      * are number of characters, not line or string number within the "//" file.
      * </p>
      */
-    private static boolean isGNUStringTable(final String name) {
-        return GNU_STRING_TABLE_NAME.equals(name);
+    private static boolean isGNUStringTable(final ArArchiveEntry entry) {
+        return GNU_STRING_TABLE_NAME.equals(entry.getName());
     }
 
     /**
      * Checks if the signature matches ASCII "!&lt;arch&gt;" followed by a single LF control character
      *
-     * @param signature the bytes to check
-     * @param length    the number of bytes to check
-     * @return true, if this stream is an Ar archive stream, false otherwise
+     * @param buffer  the bytes to check.
+     * @param ignored ignored.
+     * @return true, if this stream is an Ar archive stream, false otherwise.
      */
-    public static boolean matches(final byte[] signature, final int length) {
-        // 3c21 7261 6863 0a3e
-        // @formatter:off
-        return length >= 8 &&
-                signature[0] == 0x21 &&
-                signature[1] == 0x3c &&
-                signature[2] == 0x61 &&
-                signature[3] == 0x72 &&
-                signature[4] == 0x63 &&
-                signature[5] == 0x68 &&
-                signature[6] == 0x3e &&
-                signature[7] == 0x0a;
-        // @formatter:on
+    public static boolean matches(final byte[] buffer, final int ignored) {
+        return ArrayUtils.startsWith(buffer, ArArchiveEntry.HEADER_BYTES);
     }
-
-    private long offset;
 
     private boolean closed;
 
@@ -139,24 +161,29 @@ public class ArArchiveInputStream extends ArchiveInputStream<ArArchiveEntry> {
     private byte[] namebuffer;
 
     /**
-     * The offset where the current entry started. -1 if no entry has been called
+     * The offset where the data for the current entry starts.
      */
     private long entryOffset = -1;
 
     /** Cached buffer for meta data - must only be used locally in the class (COMPRESS-172 - reduce garbage collection). */
     private final byte[] metaData = new byte[NAME_LEN + LAST_MODIFIED_LEN + USER_ID_LEN + GROUP_ID_LEN + FILE_MODE_LEN + LENGTH_LEN];
 
+    private ArArchiveInputStream(final Builder builder) throws IOException {
+        super(builder);
+        // Fail-fast if there is no signature
+        skipGlobalSignature();
+    }
+
     /**
      * Constructs an Ar input stream with the referenced stream
      *
-     * @param inputStream the ar input stream
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param inputStream the ar input stream.
+     * @throws IOException if an I/O error has occurred.
      */
-    public ArArchiveInputStream(final InputStream inputStream) {
-        super(inputStream, StandardCharsets.US_ASCII.name());
-    }
-
-    private int asInt(final byte[] byteArray, final int offset, final int len) throws IOException {
-        return asInt(byteArray, offset, len, 10, false);
+    public ArArchiveInputStream(final InputStream inputStream) throws IOException {
+        this(builder().setInputStream(inputStream));
     }
 
     private int asInt(final byte[] byteArray, final int offset, final int len, final boolean treatBlankAsZero) throws IOException {
@@ -179,10 +206,34 @@ public class ArArchiveInputStream extends ArchiveInputStream<ArArchiveEntry> {
         return ParsingUtils.parseLongValue(ArchiveUtils.toAsciiString(byteArray, offset, len).trim());
     }
 
+    private int checkEntryNameLength(final int nameLength) throws ArchiveException, MemoryLimitException {
+        return ArchiveUtils.checkEntryNameLength(nameLength, getMaxEntryNameLength(), "AR");
+    }
+
+    /**
+     * Checks and skips the trailer of the current entry.
+     *
+     * @throws IOException if the trailer is invalid or not read correctly.
+     */
+    private void checkTrailer() throws IOException {
+        // Check and skip the record trailer
+        final byte[] expectedTrailer = ArchiveUtils.toAsciiBytes(ArArchiveEntry.TRAILER);
+        final byte[] actualTrailer = org.apache.commons.compress.utils.IOUtils.readRange(in, expectedTrailer.length);
+        if (actualTrailer.length < expectedTrailer.length) {
+            throw new EOFException(String.format(
+                    "Premature end of ar archive: Invalid or incomplete trailer for entry '%s'.",
+                    ArchiveUtils.toAsciiString(metaData, NAME_OFFSET, NAME_LEN).trim()));
+        }
+        count(actualTrailer.length);
+        if (!Arrays.equals(expectedTrailer, actualTrailer)) {
+            throw new ArchiveException("Invalid ar archive entry trailer: " + ArchiveUtils.toAsciiString(actualTrailer));
+        }
+    }
+
     /*
      * (non-Javadoc)
      *
-     * @see java.io.InputStream#close()
+     * @see InputStream#close()
      */
     @Override
     public void close() throws IOException {
@@ -200,12 +251,12 @@ public class ArArchiveInputStream extends ArchiveInputStream<ArArchiveEntry> {
      * @since 1.3
      */
     private String getBSDLongName(final String bsdLongName) throws IOException {
-        final int nameLen = ParsingUtils.parseIntValue(bsdLongName.substring(BSD_LONGNAME_PREFIX_LEN));
-        final byte[] name = IOUtils.readRange(in, nameLen);
+        final int nameLen = checkEntryNameLength(ParsingUtils.parseIntValue(bsdLongName.substring(BSD_LONGNAME_PREFIX_LEN)));
+        final byte[] name = org.apache.commons.compress.utils.IOUtils.readRange(in, nameLen);
         final int read = name.length;
-        trackReadBytes(read);
+        count(read);
         if (read != nameLen) {
-            throw new EOFException();
+            throw new EOFException(bsdLongName);
         }
         return ArchiveUtils.toAsciiString(name);
     }
@@ -213,139 +264,143 @@ public class ArArchiveInputStream extends ArchiveInputStream<ArArchiveEntry> {
     /**
      * Gets an extended name from the GNU extended name buffer.
      *
-     * @param offset pointer to entry within the buffer
+     * @param offset pointer to entry within the buffer.
      * @return the extended file name; without trailing "/" if present.
-     * @throws IOException if name not found or buffer not set up
+     * @throws IOException if name not found or buffer not set up.
      */
     private String getExtendedName(final int offset) throws IOException {
         if (namebuffer == null) {
-            throw new IOException("Cannot process GNU long file name as no // record was found");
+            throw new ArchiveException("Cannot process GNU long file name as no GNU string table was found");
+        }
+        if (offset >= namebuffer.length) {
+            throw new ArchiveException("GNU long file name offset out of range: " + offset);
         }
         for (int i = offset; i < namebuffer.length; i++) {
-            if (namebuffer[i] == '\012' || namebuffer[i] == 0) {
-                // Avoid array errors
-                if (i == 0) {
-                    break;
-                }
-                if (namebuffer[i - 1] == '/') {
-                    i--; // drop trailing /
+            final byte c = namebuffer[i];
+            if (c == '\n' || c == 0) {
+                if (i > offset && namebuffer[i - 1] == '/') {
+                    i--; // drop trailing '/'
                 }
                 // Check there is a something to return, otherwise break out of the loop
-                if (i - offset > 0) {
-                    return ArchiveUtils.toAsciiString(namebuffer, offset, i - offset);
+                if (i > offset) {
+                    return ArchiveUtils.toAsciiString(namebuffer, offset, checkEntryNameLength(i - offset));
                 }
                 break;
             }
         }
-        throw new IOException("Failed to read entry: " + offset);
+        throw new ArchiveException("Failed to read GNU long file name at offset " + offset);
     }
 
     /**
      * Returns the next AR entry in this stream.
      *
      * @return the next AR entry.
-     * @throws IOException if the entry could not be read
+     * @throws IOException if the entry could not be read.
      * @deprecated Use {@link #getNextEntry()}.
      */
     @Deprecated
     public ArArchiveEntry getNextArEntry() throws IOException {
-        if (currentEntry != null) {
-            final long entryEnd = entryOffset + currentEntry.getLength();
-            final long skipped = org.apache.commons.io.IOUtils.skip(in, entryEnd - offset);
-            trackReadBytes(skipped);
-            currentEntry = null;
-        }
-        if (offset == 0) {
-            final byte[] expected = ArchiveUtils.toAsciiBytes(ArArchiveEntry.HEADER);
-            final byte[] realized = IOUtils.readRange(in, expected.length);
-            final int read = realized.length;
-            trackReadBytes(read);
-            if (read != expected.length) {
-                throw new IOException("Failed to read header. Occurred at byte: " + getBytesRead());
-            }
-            if (!Arrays.equals(expected, realized)) {
-                throw new IOException("Invalid header " + ArchiveUtils.toAsciiString(realized));
-            }
-        }
-        if (offset % 2 != 0) {
-            if (in.read() < 0) {
-                // hit eof
-                return null;
-            }
-            trackReadBytes(1);
-        }
-        {
-            final int read = IOUtils.readFully(in, metaData);
-            trackReadBytes(read);
-            if (read == 0) {
-                return null;
-            }
-            if (read < metaData.length) {
-                throw new IOException("Truncated ar archive");
-            }
-        }
-        {
-            final byte[] expected = ArchiveUtils.toAsciiBytes(ArArchiveEntry.TRAILER);
-            final byte[] realized = IOUtils.readRange(in, expected.length);
-            final int read = realized.length;
-            trackReadBytes(read);
-            if (read != expected.length) {
-                throw new IOException("Failed to read entry trailer. Occurred at byte: " + getBytesRead());
-            }
-            if (!Arrays.equals(expected, realized)) {
-                throw new IOException("Invalid entry trailer. not read the content? Occurred at byte: " + getBytesRead());
-            }
-        }
-
-        entryOffset = offset;
-        // GNU ar uses a '/' to mark the end of the file name; this allows for the use of spaces without the use of an extended file name.
-        // entry name is stored as ASCII string
-        String temp = ArchiveUtils.toAsciiString(metaData, NAME_OFFSET, NAME_LEN).trim();
-        if (isGNUStringTable(temp)) { // GNU extended file names entry
-            currentEntry = readGNUStringTable(metaData, LENGTH_OFFSET, LENGTH_LEN);
-            return getNextArEntry();
-        }
-        long len;
-        try {
-            len = asLong(metaData, LENGTH_OFFSET, LENGTH_LEN);
-        } catch (final NumberFormatException ex) {
-            throw new IOException("Broken archive, unable to parse ar_size field as a number", ex);
-        }
-        if (temp.endsWith("/")) { // GNU terminator
-            temp = temp.substring(0, temp.length() - 1);
-        } else if (isGNULongName(temp)) {
-            final int off = ParsingUtils.parseIntValue(temp.substring(1)); // get the offset
-            temp = getExtendedName(off); // convert to the long name
-        } else if (isBSDLongName(temp)) {
-            temp = getBSDLongName(temp);
-            // entry length contained the length of the file name in
-            // addition to the real length of the entry.
-            // assume file name was ASCII, there is no "standard" otherwise
-            final int nameLen = temp.length();
-            len -= nameLen;
-            entryOffset += nameLen;
-        }
-        if (len < 0) {
-            throw new IOException("broken archive, entry with negative size");
-        }
-        try {
-            currentEntry = new ArArchiveEntry(temp, len, asInt(metaData, USER_ID_OFFSET, USER_ID_LEN, true),
-                    asInt(metaData, GROUP_ID_OFFSET, GROUP_ID_LEN, true), asInt(metaData, FILE_MODE_OFFSET, FILE_MODE_LEN, 8),
-                    asLong(metaData, LAST_MODIFIED_OFFSET, LAST_MODIFIED_LEN));
-            return currentEntry;
-        } catch (final NumberFormatException ex) {
-            throw new IOException("Broken archive, unable to parse entry metadata fields as numbers", ex);
-        }
+        return getNextEntry();
     }
 
     /*
-     * (non-Javadoc)
+     * Returns the next AR file entry in this stream.
+     * <p>
+     *    The method skips special AR file entries, such as those used by GNU.
+     * </p>
      *
-     * @see org.apache.commons.compress.archivers.ArchiveInputStream#getNextEntry()
+     * @return The next AR file entry.
+     * @throws IOException if the entry could not be read or is malformed.
      */
     @Override
     public ArArchiveEntry getNextEntry() throws IOException {
-        return getNextArEntry();
+        // Handle special GNU ar entries
+        boolean foundGNUStringTable = false;
+        do {
+            // If there is a current entry, skip any unread data and padding
+            if (currentEntry != null) {
+                IOUtils.consume(this); // Skip to end of current entry
+                skipRecordPadding(); // Skip padding to align to the next record
+            }
+
+            // Read the next header record
+            final byte[] headerBuf = getRecord();
+            if (headerBuf == null) {
+                // If we encounter a GNU string table but no subsequent file member, the archive is malformed.
+                // GNU does not document the ordering of the GNU string table, but the FreeBSD ar(5) manual does:
+                //
+                //   "If present, this member immediately follows the archive symbol table if an archive symbol
+                //    table is present, or is the first member otherwise."
+                //
+                // Reference: https://man.freebsd.org/cgi/man.cgi?query=ar&sektion=5
+                if (foundGNUStringTable) {
+                    throw new EOFException("Premature end of ar archive: No regular entry after GNU string table.");
+                }
+                currentEntry = null;
+                return null; // End of archive
+            }
+            checkTrailer();
+
+            // Parse the header into a new entry
+            currentEntry = parseEntry(headerBuf);
+            entryOffset = getBytesRead(); // Store the offset of the entry
+
+            foundGNUStringTable = isGNUStringTable(currentEntry);
+            if (foundGNUStringTable) {
+                // If this is a GNU string table entry, read the extended names and continue
+                namebuffer = readGNUStringTable(currentEntry);
+            }
+        } while (foundGNUStringTable);
+
+        // Handle long file names and other special cases
+        String name = currentEntry.getName();
+        long len = currentEntry.getLength();
+        // Handle GNU ar: names ending with '/' are terminated (allows spaces in names)
+        if (name.endsWith("/")) {
+            name = name.substring(0, name.length() - 1);
+        } else if (isGNULongName(name)) {
+            // GNU ar: name is a reference to the string table (e.g., "/42"), resolve the actual name
+            final int off = ParsingUtils.parseIntValue(name.substring(1));
+            name = getExtendedName(off);
+        } else if (isBSDLongName(name)) {
+            // BSD ar: name is stored after the header, retrieve it
+            name = getBSDLongName(name);
+            // The entry length includes the file name length; adjust to get the actual file data length
+            final int nameLen = name.length();
+            if (nameLen > len) {
+                throw new ArchiveException(
+                        "Invalid BSD long name: File name length (" + nameLen + ") exceeds entry length (" + len + ")");
+            }
+            len -= nameLen;
+            entryOffset += nameLen;
+        }
+
+        currentEntry = new ArArchiveEntry(name, len, currentEntry.getUserId(), currentEntry.getGroupId(),
+                currentEntry.getMode(), currentEntry.getLastModified());
+        return currentEntry;
+    }
+
+    /**
+     * Reads the next raw record from the input stream.
+     * <p>
+     *   The record is expected to be of a fixed size defined by the AR format.
+     * </p>
+     *
+     * @return the byte array containing the record data, or null if the end of the stream is reached.
+     * @throws IOException if an I/O error occurs while reading the stream or if the record is malformed.
+     */
+    private byte[] getRecord() throws IOException {
+        final int read = IOUtils.read(in, metaData);
+        count(read);
+        if (read == 0) {
+            return null;
+        }
+        if (read < metaData.length) {
+            throw new EOFException(String.format(
+                    "Premature end of ar archive: Incomplete entry header (expected %d bytes, got %d).",
+                    metaData.length, read));
+        }
+        return metaData;
     }
 
     /**
@@ -357,13 +412,38 @@ public class ArArchiveInputStream extends ArchiveInputStream<ArArchiveEntry> {
         return name != null && GNU_LONGNAME_PATTERN.matcher(name).matches();
     }
 
-    /*
-     * (non-Javadoc)
+    /**
+     * Parses the entry metadata from the provided raw record.
      *
-     * @see java.io.InputStream#read(byte[], int, int)
+     * @param headerBuf the buffer containing the entry metadata.
+     * @return an {@link ArArchiveEntry} object containing the parsed metadata.
+     * @throws IOException if the metadata cannot be parsed correctly.
      */
+    private ArArchiveEntry parseEntry(final byte[] headerBuf) throws IOException {
+        // Parse the entry metadata from the header buffer
+        try {
+            final String name =
+                    ArchiveUtils.toAsciiString(headerBuf, NAME_OFFSET, NAME_LEN).trim();
+            final long length = asLong(headerBuf, LENGTH_OFFSET, LENGTH_LEN);
+            // The remaining fields in the GNU string table entry are not used and may be blank.
+            if (GNU_STRING_TABLE_NAME.equals(name)) {
+                return new ArArchiveEntry(name, length);
+            }
+            final int userId = asInt(metaData, USER_ID_OFFSET, USER_ID_LEN, true);
+            final int groupId = asInt(metaData, GROUP_ID_OFFSET, GROUP_ID_LEN, true);
+            final int mode = asInt(metaData, FILE_MODE_OFFSET, FILE_MODE_LEN, 8);
+            final long lastModified = asLong(metaData, LAST_MODIFIED_OFFSET, LAST_MODIFIED_LEN);
+            return new ArArchiveEntry(name, length, userId, groupId, mode, lastModified);
+        } catch (final IllegalArgumentException e) {
+            throw new ArchiveException("Broken archive, entry with negative size", (Throwable) e);
+        } catch (final IOException e) {
+            throw new ArchiveException("Failed to parse ar entry.", (Throwable) e);
+        }
+    }
+
     @Override
     public int read(final byte[] b, final int off, final int len) throws IOException {
+        IOUtils.checkFromIndexSize(b, off, len);
         if (len == 0) {
             return 0;
         }
@@ -371,12 +451,17 @@ public class ArArchiveInputStream extends ArchiveInputStream<ArArchiveEntry> {
             throw new IllegalStateException("No current ar entry");
         }
         final long entryEnd = entryOffset + currentEntry.getLength();
+        final long offset = getBytesRead();
         if (len < 0 || offset >= entryEnd) {
             return -1;
         }
-        final int toRead = (int) Math.min(len, entryEnd - offset);
-        final int ret = this.in.read(b, off, toRead);
-        trackReadBytes(ret);
+        final int toRead = ArchiveException.toIntExact(Math.min(len, entryEnd - offset));
+        final int ret = in.read(b, off, toRead);
+        if (ret < 0) {
+            throw new EOFException(String.format(
+                    "Premature end of ar archive: Entry '%s' is truncated or incomplete.", currentEntry.getName()));
+        }
+        count(ret);
         return ret;
     }
 
@@ -385,26 +470,57 @@ public class ArArchiveInputStream extends ArchiveInputStream<ArArchiveEntry> {
      *
      * @see #isGNUStringTable
      */
-    private ArArchiveEntry readGNUStringTable(final byte[] length, final int offset, final int len) throws IOException {
-        final int bufflen;
-        try {
-            bufflen = asInt(length, offset, len); // Assume length will fit in an int
-        } catch (final NumberFormatException ex) {
-            throw new IOException("Broken archive, unable to parse GNU string table length field as a number", ex);
+    private byte[] readGNUStringTable(final ArArchiveEntry entry) throws IOException {
+        if (entry.getLength() > Integer.MAX_VALUE) {
+            throw new ArchiveException("Invalid GNU string table entry size: " + entry.getLength());
         }
-        namebuffer = IOUtils.readRange(in, bufflen);
+        final int size = (int) entry.getLength();
+        final byte[] namebuffer = org.apache.commons.compress.utils.IOUtils.readRange(in, size);
         final int read = namebuffer.length;
-        trackReadBytes(read);
-        if (read != bufflen) {
-            throw new IOException("Failed to read complete // record: expected=" + bufflen + " read=" + read);
+        if (read < size) {
+            throw new EOFException("Premature end of ar archive: Truncated or incomplete GNU string table.");
         }
-        return new ArArchiveEntry(GNU_STRING_TABLE_NAME, bufflen);
+        count(read);
+        return namebuffer;
     }
 
-    private void trackReadBytes(final long read) {
-        count(read);
-        if (read > 0) {
-            offset += read;
+    /**
+     * Skips the global archive signature if at the beginning of the stream.
+     *
+     * @throws IOException if an I/O error occurs while reading the stream or if the signature is invalid.
+     */
+    private void skipGlobalSignature() throws IOException {
+        final byte[] expectedMagic = ArArchiveEntry.HEADER_BYTES;
+        final byte[] actualMagic = org.apache.commons.compress.utils.IOUtils.readRange(in, expectedMagic.length);
+        count(actualMagic.length);
+        if (expectedMagic.length != actualMagic.length) {
+            throw new EOFException(String.format("Premature end of ar archive: Incomplete global header (expected %d bytes, got %d).", expectedMagic.length,
+                    actualMagic.length));
+        }
+        if (!Arrays.equals(expectedMagic, actualMagic)) {
+            throw new ArchiveException("Invalid global ar archive header: " + ArchiveUtils.toAsciiString(actualMagic));
+        }
+    }
+
+    /**
+     * Skips the padding bytes at the end of each record.
+     * <p>
+     * The AR format requires that each record is padded to an even number of bytes, so if the current offset is odd,
+     * we skip one byte.
+     * </p>
+     *
+     * @throws IOException if an I/O error occurs while reading the stream.
+     */
+    private void skipRecordPadding() throws IOException {
+        // If the offset is odd, we need to skip one byte
+        final long offset = getBytesRead();
+        if (offset % 2 != 0) {
+            final int c = in.read();
+            if (c < 0) {
+                throw new EOFException(String.format(
+                        "Premature end of ar archive: Missing padding for entry '%s'.", currentEntry.getName()));
+            }
+            count(1);
         }
     }
 }

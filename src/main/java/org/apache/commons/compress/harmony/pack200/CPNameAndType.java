@@ -20,12 +20,20 @@ package org.apache.commons.compress.harmony.pack200;
 
 /**
  * Constant pool entry for a name and type pair.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPNameAndType extends ConstantPoolEntry implements Comparable {
 
     private final CPUTF8 name;
     private final CPSignature signature;
 
+    /**
+     * Constructs a new CPNameAndType.
+     *
+     * @param name the name.
+     * @param signature the signature.
+     */
     public CPNameAndType(final CPUTF8 name, final CPSignature signature) {
         this.name = name;
         this.signature = signature;
@@ -44,14 +52,29 @@ public class CPNameAndType extends ConstantPoolEntry implements Comparable {
         return 0;
     }
 
+    /**
+     * Gets the name.
+     *
+     * @return the name.
+     */
     public String getName() {
         return name.getUnderlyingString();
     }
 
+    /**
+     * Gets the name index.
+     *
+     * @return the name index.
+     */
     public int getNameIndex() {
         return name.getIndex();
     }
 
+    /**
+     * Gets the type index.
+     *
+     * @return the type index.
+     */
     public int getTypeIndex() {
         return signature.getIndex();
     }

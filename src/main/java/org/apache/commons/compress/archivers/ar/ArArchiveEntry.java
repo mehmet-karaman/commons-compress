@@ -20,6 +20,7 @@ package org.apache.commons.compress.archivers.ar;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -61,6 +62,8 @@ public class ArArchiveEntry implements ArchiveEntry {
     /** The header for each entry */
     public static final String HEADER = "!<arch>\n";
 
+    static final byte[] HEADER_BYTES = HEADER.getBytes(StandardCharsets.US_ASCII);
+
     /** The trailer for each entry {@code 0x60 0x0A} */
     public static final String TRAILER = "`\012";
 
@@ -80,8 +83,8 @@ public class ArArchiveEntry implements ArchiveEntry {
     /**
      * Creates a new instance using the attributes of the given file
      *
-     * @param inputFile the file to create an entry from
-     * @param entryName the name of the entry
+     * @param inputFile the file to create an entry from.
+     * @param entryName the name of the entry.
      */
     public ArArchiveEntry(final File inputFile, final String entryName) {
         // TODO sort out mode
@@ -91,8 +94,8 @@ public class ArArchiveEntry implements ArchiveEntry {
     /**
      * Creates a new instance using the attributes of the given file
      *
-     * @param inputPath the file to create an entry from
-     * @param entryName the name of the entry
+     * @param inputPath the file to create an entry from.
+     * @param entryName the name of the entry.
      * @param options   options indicating how symbolic links are handled.
      * @throws IOException if an I/O error occurs.
      * @since 1.21
@@ -109,8 +112,8 @@ public class ArArchiveEntry implements ArchiveEntry {
      * Sets userId and groupId to 0, the octal file mode to 644 and the last modified time to the current time.
      * </p>
      *
-     * @param name   name of the entry
-     * @param length length of the entry in bytes
+     * @param name   name of the entry.
+     * @param length length of the entry in bytes.
      */
     public ArArchiveEntry(final String name, final long length) {
         this(name, length, 0, 0, DEFAULT_MODE, System.currentTimeMillis() / 1000);
@@ -119,17 +122,17 @@ public class ArArchiveEntry implements ArchiveEntry {
     /**
      * Constructs a new instance.
      *
-     * @param name         name of the entry
-     * @param length       length of the entry in bytes
-     * @param userId       numeric user id
-     * @param groupId      numeric group id
-     * @param mode         file mode
-     * @param lastModified last modified time in seconds since the epoch
+     * @param name         name of the entry.
+     * @param length       length of the entry in bytes.
+     * @param userId       numeric user id.
+     * @param groupId      numeric group id.
+     * @param mode         file mode.
+     * @param lastModified last modified time in seconds since the epoch.
      */
     public ArArchiveEntry(final String name, final long length, final int userId, final int groupId, final int mode, final long lastModified) {
         this.name = name;
         if (length < 0) {
-            throw new IllegalArgumentException("length must not be negative");
+            throw new IllegalArgumentException("Length must not be negative");
         }
         this.length = length;
         this.userId = userId;

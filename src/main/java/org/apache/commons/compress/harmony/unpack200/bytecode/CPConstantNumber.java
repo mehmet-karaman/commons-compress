@@ -20,13 +20,27 @@ package org.apache.commons.compress.harmony.unpack200.bytecode;
 
 /**
  * Abstract superclass for constant pool entries that are numbers.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public abstract class CPConstantNumber extends CPConstant {
 
+    /**
+     * Constructs a new instance.
+     *
+     * @param tag One-byte tag indicates the kind of constant.
+     * @param value The value.
+     * @param globalIndex Global index.
+     */
     public CPConstantNumber(final byte tag, final Object value, final int globalIndex) {
         super(tag, value, globalIndex);
     }
 
+    /**
+     * The value as a Number.
+     *
+     * @return The value as a Number.
+     */
     protected Number getNumber() {
         return (Number) getValue();
     }

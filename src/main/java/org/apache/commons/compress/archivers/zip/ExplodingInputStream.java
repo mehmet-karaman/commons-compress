@@ -22,7 +22,7 @@ package org.apache.commons.compress.archivers.zip;
 import java.io.IOException;
 import java.io.InputStream;
 
-import org.apache.commons.compress.utils.ExactMath;
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.utils.InputStreamStatistics;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.commons.io.input.CloseShieldInputStream;
@@ -68,11 +68,11 @@ final class ExplodingInputStream extends InputStream implements InputStreamStati
     private long treeSizes;
 
     /**
-     * Constructs a new stream decompressing the content of the specified stream using the explode algorithm.
+     * Constructs a new stream decompressing the content of the specified stream using the <em>explode</em> algorithm.
      *
-     * @param dictionarySize the size of the sliding dictionary (4096 or 8192)
-     * @param numberOfTrees  the number of trees (2 or 3)
-     * @param in             the compressed data stream
+     * @param dictionarySize the size of the sliding dictionary (4096 or 8192).
+     * @param numberOfTrees  the number of trees (2 or 3).
+     * @param in             the compressed data stream.
      */
     ExplodingInputStream(final int dictionarySize, final int numberOfTrees, final InputStream in) {
         if (dictionarySize != 4096 && dictionarySize != 8192) {
@@ -103,7 +103,7 @@ final class ExplodingInputStream extends InputStream implements InputStreamStati
     private void fillBuffer() throws IOException {
         init();
 
-        final int bit = bits.nextBit();
+        final int bit = bits.readBit();
         if (bit == -1) {
             // EOF
             return;
@@ -142,7 +142,7 @@ final class ExplodingInputStream extends InputStream implements InputStreamStati
                     // EOF
                     return;
                 }
-                length = ExactMath.add(length, nextByte);
+                length = ArchiveException.addExact(length, nextByte);
             }
             length += minimumMatchLength;
 
@@ -169,7 +169,7 @@ final class ExplodingInputStream extends InputStream implements InputStreamStati
     /**
      * Reads the encoded binary trees and prepares the bit stream.
      *
-     * @throws IOException
+     * @throws IOException if an I/O error occurs.
      */
     private void init() throws IOException {
         if (bits == null) {
@@ -193,8 +193,8 @@ final class ExplodingInputStream extends InputStream implements InputStreamStati
         if (!buffer.available()) {
             try {
                 fillBuffer();
-            } catch (final IllegalArgumentException ex) {
-                throw new IOException("bad IMPLODE stream", ex);
+            } catch (final IllegalArgumentException e) {
+                throw new ArchiveException("Bad IMPLODE stream", (Throwable) e);
             }
         }
 

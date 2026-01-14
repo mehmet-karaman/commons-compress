@@ -6,6 +6,12 @@ target
 .vscode
 *.iml
 *~
+.DS_Store
 /.externalToolBuilders/
 /maven-eclipse.xml
 /.java-version
+/.checkstyle
+
+# NetBeans files
+nb-configuration.xml
+nbactions.xml

@@ -52,6 +52,7 @@ import java.util.List;
  */
 
 public class TarArchiveSparseEntry implements TarConstants {
+
     /** If an extension sparse header follows. */
     private final boolean isExtended;
 
@@ -61,7 +62,7 @@ public class TarArchiveSparseEntry implements TarConstants {
      * Constructs an entry from an archive's header bytes. File is set to null.
      *
      * @param headerBuf The header bytes from a tar archive entry.
-     * @throws IOException on unknown format
+     * @throws IOException on unknown format.
      */
     public TarArchiveSparseEntry(final byte[] headerBuf) throws IOException {
         int offset = 0;
@@ -73,8 +74,8 @@ public class TarArchiveSparseEntry implements TarConstants {
     /**
      * Gets information about the configuration for the sparse entry.
      *
-     * @since 1.20
      * @return information about the configuration for the sparse entry.
+     * @since 1.20
      */
     public List<TarArchiveStructSparse> getSparseHeaders() {
         return sparseHeaders;

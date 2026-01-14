@@ -23,9 +23,17 @@ import java.io.IOException;
 
 /**
  * Integer constant pool entry.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPInteger extends CPConstantNumber {
 
+    /**
+     * Constructs a new instance.
+     *
+     * @param value The value.
+     * @param globalIndex Global index.
+     */
     public CPInteger(final Integer value, final int globalIndex) {
         super(CP_Integer, value, globalIndex);
     }

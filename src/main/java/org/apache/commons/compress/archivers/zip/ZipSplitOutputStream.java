@@ -32,7 +32,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-import org.apache.commons.compress.utils.FileNameUtils;
+import org.apache.commons.compress.archivers.ArchiveException;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.file.PathUtils;
 
 /**
  * Used internally by {@link ZipArchiveOutputStream} when creating a split archive.
@@ -69,10 +71,10 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
      * Creates a split ZIP. If the ZIP file is smaller than the split size, then there will only be one split ZIP, and its suffix is .zip, otherwise the split
      * segments should be like .z01, .z02, ... .z(N-1), .zip
      *
-     * @param zipFile   the ZIP file to write to
-     * @param splitSize the split size
+     * @param zipFile   the ZIP file to write to.
+     * @param splitSize the split size.
      * @throws IllegalArgumentException if arguments are illegal: Zip split segment size should between 64K and 4,294,967,295.
-     * @throws IOException              if an I/O error occurs
+     * @throws IOException              if an I/O error occurs.
      */
     ZipSplitOutputStream(final File zipFile, final long splitSize) throws IllegalArgumentException, IOException {
         this(zipFile.toPath(), splitSize);
@@ -82,10 +84,10 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
      * Creates a split ZIP. If the ZIP file is smaller than the split size, then there will only be one split ZIP, and its suffix is .zip, otherwise the split
      * segments should be like .z01, .z02, ... .z(N-1), .zip
      *
-     * @param zipFile   the path to ZIP file to write to
-     * @param splitSize the split size
+     * @param zipFile   the path to ZIP file to write to.
+     * @param splitSize the split size.
      * @throws IllegalArgumentException if arguments are illegal: Zip split segment size should between 64K and 4,294,967,295.
-     * @throws IOException              if an I/O error occurs
+     * @throws IOException              if an I/O error occurs.
      * @since 1.22
      */
     ZipSplitOutputStream(final Path zipFile, final long splitSize) throws IllegalArgumentException, IOException {
@@ -104,7 +106,7 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
 
     public long calculateDiskPosition(final long disk, final long localOffset) throws IOException {
         if (disk >= Integer.MAX_VALUE) {
-            throw new IOException("Disk number exceeded internal limits: limit=" + Integer.MAX_VALUE + " requested=" + disk);
+            throw new ArchiveException("Disk number exceeded internal limits: limit = %,d requested = %,d", Integer.MAX_VALUE, disk);
         }
         return diskToPosition.get((int) disk) + localOffset;
     }
@@ -130,15 +132,15 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
      * NOTE: The ZIP split segment begin from 1,2,3,... , and we're creating a new segment, so the new segment suffix should be (currentSplitSegmentIndex + 2)
      * </p>
      *
-     * @param zipSplitSegmentSuffixIndex
-     * @return
-     * @throws IOException
+     * @param zipSplitSegmentSuffixIndex.
+     * @return a new Path.
+     * @throws IOException if an I/O error occurs.
      */
     private Path createNewSplitSegmentFile(final Integer zipSplitSegmentSuffixIndex) throws IOException {
         final Path newFile = getSplitSegmentFileName(zipSplitSegmentSuffixIndex);
 
         if (Files.exists(newFile)) {
-            throw new IOException("split ZIP segment " + newFile + " already exists");
+            throw new ArchiveException("Split ZIP segment '%s' already exists", newFile);
         }
         return newFile;
     }
@@ -146,14 +148,15 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
     /**
      * The last ZIP split segment's suffix should be .zip
      *
-     * @throws IOException
+     * @throws IOException if an I/O error occurs.
      */
     private void finish() throws IOException {
         if (finished) {
-            throw new IOException("This archive has already been finished");
+            throw new ArchiveException("This archive has already been finished");
         }
+        final Path path = zipFile;
 
-        final String zipFileBaseName = FileNameUtils.getBaseName(zipFile);
+        final String zipFileBaseName = PathUtils.getBaseName(path);
         outputStream.close();
         Files.move(zipFile, zipFile.resolveSibling(zipFileBaseName + ".zip"), StandardCopyOption.ATOMIC_MOVE);
         finished = true;
@@ -169,7 +172,8 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
 
     private Path getSplitSegmentFileName(final Integer zipSplitSegmentSuffixIndex) {
         final int newZipSplitSegmentSuffixIndex = zipSplitSegmentSuffixIndex == null ? currentSplitSegmentIndex + 2 : zipSplitSegmentSuffixIndex;
-        final String baseName = FileNameUtils.getBaseName(zipFile);
+        final Path path = zipFile;
+        final String baseName = PathUtils.getBaseName(path);
         final StringBuilder extension = new StringBuilder(".z");
         if (newZipSplitSegmentSuffixIndex <= 9) {
             extension.append("0").append(newZipSplitSegmentSuffixIndex);
@@ -185,7 +189,7 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
     /**
      * Creates a new ZIP split segment and prepare to write to the new segment
      *
-     * @throws IOException
+     * @throws IOException if an I/O error occurs.
      */
     private void openNewSplitSegment() throws IOException {
         Path newFile;
@@ -214,15 +218,18 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
     }
 
     /**
+     * Prepares to write unsplittable content.
+     * <p>
      * Some data cannot be written to different split segments, for example:
+     * </p>
      * <p>
      * 4.4.1.5 The end of central directory record and the Zip64 end of central directory locator record MUST reside on the same disk when splitting or spanning
      * an archive.
      * </p>
      *
-     * @param unsplittableContentSize
-     * @throws IllegalArgumentException
-     * @throws IOException
+     * @param unsplittableContentSize the split size request must be less than or equal to the split size.
+     * @throws IllegalArgumentException if unsplittable content size is bigger than the split segment size.
+     * @throws IOException if an I/O error occurs.
      */
     public void prepareToWriteUnsplittableContent(final long unsplittableContentSize) throws IllegalArgumentException, IOException {
         if (unsplittableContentSize > this.splitSize) {
@@ -243,13 +250,17 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
     /**
      * Writes the data to ZIP split segments, if the remaining space of current split segment is not enough, then a new split segment should be created
      *
-     * @param b   data to write
-     * @param off offset of the start of data in param b
-     * @param len the length of data to write
-     * @throws IOException
+     * @param b   data to write.
+     * @param off offset of the start of data in param b.
+     * @param len the length of data to write.
+     * @throws NullPointerException      if {@code b} is null.
+     * @throws IndexOutOfBoundsException if {@code off} or {@code len} are negative,
+     *                                   or if {@code off + len} is greater than {@code b.length}.
+     * @throws IOException if an I/O error occurs.
      */
     @Override
     public void write(final byte[] b, final int off, final int len) throws IOException {
+        IOUtils.checkFromIndexSize(b, off, len);
         if (len <= 0) {
             return;
         }
@@ -276,13 +287,13 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
     }
 
     @Override
-    public void writeFully(final byte[] b, final int off, final int len, final long atPosition) throws IOException {
+    public void writeAll(final byte[] b, final int off, final int len, final long atPosition) throws IOException {
         long remainingPosition = atPosition;
         for (int remainingOff = off, remainingLen = len; remainingLen > 0; ) {
             final Map.Entry<Long, Path> segment = positionToFiles.floorEntry(remainingPosition);
             final Long segmentEnd = positionToFiles.higherKey(remainingPosition);
             if (segmentEnd == null) {
-                ZipIoUtil.writeFullyAt(this.currentChannel, ByteBuffer.wrap(b, remainingOff, remainingLen), remainingPosition - segment.getKey());
+                ZipIoUtil.writeAll(this.currentChannel, ByteBuffer.wrap(b, remainingOff, remainingLen), remainingPosition - segment.getKey());
                 remainingPosition += remainingLen;
                 remainingOff += remainingLen;
                 remainingLen = 0;
@@ -301,22 +312,16 @@ final class ZipSplitOutputStream extends RandomAccessOutputStream {
         }
     }
 
-    private void writeToSegment(
-            final Path segment,
-            final long position,
-            final byte[] b,
-            final int off,
-            final int len
-    ) throws IOException {
+    private void writeToSegment(final Path segment, final long position, final byte[] b, final int off, final int len) throws IOException {
         try (FileChannel channel = FileChannel.open(segment, StandardOpenOption.WRITE)) {
-            ZipIoUtil.writeFullyAt(channel, ByteBuffer.wrap(b, off, len), position);
+            ZipIoUtil.writeAll(channel, ByteBuffer.wrap(b, off, len), position);
         }
     }
 
     /**
      * Writes the ZIP split signature (0x08074B50) to the head of the first ZIP split segment
      *
-     * @throws IOException
+     * @throws IOException if an I/O error occurs.
      */
     private void writeZipSplitSignature() throws IOException {
         outputStream.write(ZipArchiveOutputStream.DD_SIG);

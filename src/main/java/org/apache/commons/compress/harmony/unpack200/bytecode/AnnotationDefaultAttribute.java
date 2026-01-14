@@ -24,12 +24,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * AnnotationDefault class file attribute
+ * AnnotationDefault class file attribute.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class AnnotationDefaultAttribute extends AnnotationsAttribute {
 
     private static CPUTF8 attributeName;
 
+    /**
+     * Sets the attribute name.
+     *
+     * @param cpUTF8Value the attribute name.
+     */
     public static void setAttributeName(final CPUTF8 cpUTF8Value) {
         attributeName = cpUTF8Value;
     }

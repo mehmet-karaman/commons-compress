@@ -56,7 +56,7 @@ public class BrotliUtils {
     /**
      * Are the classes required to support Brotli compression available?
      *
-     * @return true if the classes required to support Brotli compression are available
+     * @return true if the classes required to support Brotli compression are available.
      */
     public static boolean isBrotliCompressionAvailable() {
         final CachedAvailability cachedResult = cachedBrotliAvailability;
@@ -67,13 +67,13 @@ public class BrotliUtils {
     }
 
     /**
-     * Whether to cache the result of the Brotli for Java check.
+     * Sets whether to cache the result of the Brotli for Java check.
      *
      * <p>
      * This defaults to {@code false} in an OSGi environment and {@code true} otherwise.
      * </p>
      *
-     * @param doCache whether to cache the result
+     * @param doCache whether to cache the result.
      */
     public static void setCacheBrotliAvailablity(final boolean doCache) {
         if (!doCache) {
@@ -84,7 +84,7 @@ public class BrotliUtils {
         }
     }
 
-    /** Private constructor to prevent instantiation of this utility class. */
+    /** Constructs a new instance. */
     private BrotliUtils() {
     }
 }

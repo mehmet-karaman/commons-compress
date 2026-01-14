@@ -45,14 +45,14 @@ import org.apache.commons.compress.archivers.dump.DumpArchiveInputStream;
 import org.apache.commons.compress.archivers.jar.JarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
-import org.apache.commons.compress.utils.ByteUtils;
 import org.apache.commons.io.input.BrokenInputStream;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public class ArchiveStreamFactoryTest extends AbstractTest {
+class ArchiveStreamFactoryTest extends AbstractTest {
 
     static class TestData {
         final String testFile;
@@ -96,22 +96,23 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
      */
     private static final String ARJ_DEFAULT;
     private static final String DUMP_DEFAULT;
-    private static final String ZIP_DEFAULT = getCharsetName(new ZipArchiveInputStream(null));
-    private static final String CPIO_DEFAULT = getCharsetName(new CpioArchiveInputStream(null));
-    private static final String TAR_DEFAULT = getCharsetName(new TarArchiveInputStream(null));
-    private static final String JAR_DEFAULT = getCharsetName(new JarArchiveInputStream(null));
+    private static final String ZIP_DEFAULT = getCharsetName(ZipArchiveInputStream.builder());
+    private static final String CPIO_DEFAULT = getCharsetName(CpioArchiveInputStream.builder());
+    private static final String TAR_DEFAULT = getCharsetName(TarArchiveInputStream.builder());
+    private static final String JAR_DEFAULT = getCharsetName(JarArchiveInputStream.builder());
 
     static {
         String dflt;
         dflt = UNKNOWN;
-        try (ArjArchiveInputStream inputStream = new ArjArchiveInputStream(newInputStream("bla.arj"))) {
+        try (ArjArchiveInputStream inputStream = ArjArchiveInputStream.builder().setURI(getURI("bla.arj")).get()) {
             dflt = getCharsetName(inputStream);
         } catch (final Exception e) {
             e.printStackTrace();
         }
         ARJ_DEFAULT = dflt;
         dflt = UNKNOWN;
-        try (DumpArchiveInputStream inputStream = new DumpArchiveInputStream(newInputStream("bla.dump"))) {
+        try (DumpArchiveInputStream inputStream =
+                DumpArchiveInputStream.builder().setURI(getURI("bla.dump")).get()) {
             dflt = getCharsetName(inputStream);
         } catch (final Exception e) {
             e.printStackTrace();
@@ -154,6 +155,10 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
             new TestData("bla.zip", ArchiveStreamFactory.ZIP, true, StandardCharsets.US_ASCII.name(), FACTORY_ASCII, "charset"),
             new TestData("bla.zip", ArchiveStreamFactory.ZIP, true, StandardCharsets.UTF_8.name(), FACTORY_SET_UTF8, "charset"),
             new TestData("bla.zip", ArchiveStreamFactory.ZIP, true, StandardCharsets.US_ASCII.name(), FACTORY_SET_ASCII, "charset"), };
+
+    private static String getCharsetName(final AbstractArchiveBuilder<?, ?> builder) {
+        return builder.getCharset().name();
+    }
 
     private static String getCharsetName(final ArchiveInputStream<?> inputStream) {
         return inputStream.getCharset().name();
@@ -223,7 +228,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
      * see https://issues.apache.org/jira/browse/COMPRESS-191
      */
     @Test
-    public void testAiffFilesAreNoTARs() throws Exception {
+    void testAiffFilesAreNoTARs() throws Exception {
         try (InputStream fis = newInputStream("testAIFF.aif");
                 InputStream is = new BufferedInputStream(fis)) {
             final ArchiveException ae = assertThrows(ArchiveException.class, () -> ArchiveStreamFactory.DEFAULT.createArchiveInputStream(is),
@@ -233,19 +238,19 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
     }
 
     @Test
-    public void testCantRead7zFromStream() throws Exception {
+    void testCantRead7zFromStream() throws Exception {
         assertThrows(StreamingNotSupportedException.class, () -> ArchiveStreamFactory.DEFAULT.createArchiveInputStream(ArchiveStreamFactory.SEVEN_Z,
-                new ByteArrayInputStream(ByteUtils.EMPTY_BYTE_ARRAY)));
+                new ByteArrayInputStream(ArrayUtils.EMPTY_BYTE_ARRAY)));
     }
 
     @Test
-    public void testCantWrite7zToStream() throws Exception {
+    void testCantWrite7zToStream() throws Exception {
         assertThrows(StreamingNotSupportedException.class,
                 () -> ArchiveStreamFactory.DEFAULT.createArchiveOutputStream(ArchiveStreamFactory.SEVEN_Z, new ByteArrayOutputStream()));
     }
 
     @Test
-    public void testCOMPRESS209() throws Exception {
+    void testCOMPRESS209() throws Exception {
         try (InputStream fis = newInputStream("testCompress209.doc");
                 InputStream bis = new BufferedInputStream(fis)) {
             final ArchiveException ae = assertThrows(ArchiveException.class, () -> ArchiveStreamFactory.DEFAULT.createArchiveInputStream(bis),
@@ -255,7 +260,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
     }
 
     @Test
-    public void testDetect() throws Exception {
+    void testDetect() throws Exception {
         for (final String extension : new String[] { ArchiveStreamFactory.AR, ArchiveStreamFactory.ARJ, ArchiveStreamFactory.CPIO, ArchiveStreamFactory.DUMP,
                 // Compress doesn't know how to detect JARs, see COMPRESS-91
                 // ArchiveStreamFactory.JAR,
@@ -264,7 +269,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
         }
 
         final ArchiveException e1 = assertThrows(ArchiveException.class,
-                () -> ArchiveStreamFactory.detect(new BufferedInputStream(new ByteArrayInputStream(ByteUtils.EMPTY_BYTE_ARRAY))),
+                () -> ArchiveStreamFactory.detect(new BufferedInputStream(new ByteArrayInputStream(ArrayUtils.EMPTY_BYTE_ARRAY))),
                 "shouldn't be able to detect empty stream");
         assertEquals("No Archiver found for the stream signature", e1.getMessage());
 
@@ -281,7 +286,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
      * Test case for <a href="https://issues.apache.org/jira/browse/COMPRESS-267">COMPRESS-267</a>.
      */
     @Test
-    public void testDetectsAndThrowsFor7z() throws Exception {
+    void testDetectsAndThrowsFor7z() throws Exception {
         try (InputStream fis = newInputStream("bla.7z");
                 InputStream bis = new BufferedInputStream(fis)) {
             final StreamingNotSupportedException ex = assertThrows(StreamingNotSupportedException.class,
@@ -291,7 +296,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
     }
 
     @Test
-    public void testEncodingCtor() {
+    void testEncodingCtor() {
         ArchiveStreamFactory fac = new ArchiveStreamFactory();
         assertNull(fac.getEntryEncoding());
         fac = new ArchiveStreamFactory(null);
@@ -302,7 +307,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
 
     @Test
     @SuppressWarnings("deprecation")
-    public void testEncodingDeprecated() {
+    void testEncodingDeprecated() {
         final ArchiveStreamFactory fac1 = new ArchiveStreamFactory();
         assertNull(fac1.getEntryEncoding());
         fac1.setEntryEncoding(StandardCharsets.UTF_8.name());
@@ -316,7 +321,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
     }
 
     @Test
-    public void testEncodingInputStream() throws Exception {
+    void testEncodingInputStream() throws Exception {
         int failed = 0;
         for (int i = 1; i <= TESTS.length; i++) {
             final TestData test = TESTS[i - 1];
@@ -334,7 +339,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
     }
 
     @Test
-    public void testEncodingInputStreamAutodetect() throws Exception {
+    void testEncodingInputStreamAutodetect() throws Exception {
         int failed = 0;
         for (int i = 1; i <= TESTS.length; i++) {
             final TestData test = TESTS[i - 1];
@@ -352,7 +357,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
     }
 
     @Test
-    public void testEncodingOutputStream() throws Exception {
+    void testEncodingOutputStream() throws Exception {
         int failed = 0;
         for (int i = 1; i <= TESTS.length; i++) {
             final TestData test = TESTS[i - 1];
@@ -373,7 +378,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
 
     @ParameterizedTest
     @MethodSource("getIcoPathStream")
-    public void testIcoFilesAreNoTARs(final Path path) throws Exception {
+    void testIcoFilesAreNoTARs(final Path path) throws Exception {
         try (InputStream fis = Files.newInputStream(path);
                 InputStream is = new BufferedInputStream(fis)) {
             final ArchiveException ae = assertThrows(ArchiveException.class, () -> ArchiveStreamFactory.detect(is),
@@ -392,7 +397,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
      * See https://issues.apache.org/jira/browse/COMPRESS-171
      */
     @Test
-    public void testShortTextFilesAreNoTARs() {
+    void testShortTextFilesAreNoTARs() {
         final ArchiveException ae = assertThrows(ArchiveException.class,
                 () -> ArchiveStreamFactory.DEFAULT
                         .createArchiveInputStream(new ByteArrayInputStream("This certainly is not a tar archive, really, no kidding".getBytes())),
@@ -404,7 +409,7 @@ public class ArchiveStreamFactoryTest extends AbstractTest {
      * Tests case for <a href="https://issues.apache.org/jira/browse/COMPRESS-208">COMPRESS-208</a>.
      */
     @Test
-    public void testSkipsPK00Prefix() throws Exception {
+    void testSkipsPK00Prefix() throws Exception {
         try (InputStream fis = newInputStream("COMPRESS-208.zip")) {
             try (InputStream bis = new BufferedInputStream(fis)) {
                 try (ArchiveInputStream<?> ais = ArchiveStreamFactory.DEFAULT.createArchiveInputStream(bis)) {

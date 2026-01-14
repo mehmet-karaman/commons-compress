@@ -51,27 +51,58 @@ import org.apache.commons.compress.harmony.unpack200.bytecode.ClassFile;
 import org.apache.commons.compress.harmony.unpack200.bytecode.ClassFileEntry;
 import org.apache.commons.compress.harmony.unpack200.bytecode.InnerClassesAttribute;
 import org.apache.commons.compress.harmony.unpack200.bytecode.SourceFileAttribute;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 
 /**
  * A Pack200 archive consists of one or more segments. Each segment is stand-alone, in the sense that every segment has the magic number header; thus, every
  * segment is also a valid archive. However, it is possible to combine (non-GZipped) archives into a single large archive by concatenation alone. Thus, all the
  * hard work in unpacking an archive falls to understanding a segment.
- *
+ * <p>
  * The first component of a segment is the header; this contains (amongst other things) the expected counts of constant pool entries, which in turn defines how
  * many values need to be read from the stream. Because values are variable width (see {@link Codec}), it is not possible to calculate the start of the next
  * segment, although one of the header values does hint at the size of the segment if non-zero, which can be used for buffering purposes.
- *
+ * </p>
+ * <p>
  * Note that this does not perform any buffering of the input stream; each value will be read on a byte-by-byte basis. It does not perform GZip decompression
  * automatically; both of these are expected to be done by the caller if the stream has the magic header for GZip streams ({@link GZIPInputStream#GZIP_MAGIC}).
  * In any case, if GZip decompression is being performed the input stream will be buffered at a higher level, and thus this can read on a byte-oriented basis.
+ * </p>
+ * <p>
+ * Format:
+ * </p>
+ * <pre>
+ *   pack200_archive:
+ *      (pack200_segment)+
+ *
+ *   pack200_segment:
+ *      segment_header
+ *      *band_headers :BYTE1
+ *      cp_bands
+ *      attr_definition_bands
+ *      ic_bands
+ *      class_bands
+ *      bc_bands
+ *      file_bands
+ * </pre>
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class Segment {
 
+    /**
+     * Log level verbose {@value}
+     */
     public static final int LOG_LEVEL_VERBOSE = 2;
 
+    /**
+     * Log level standard {@value}
+     */
     public static final int LOG_LEVEL_STANDARD = 1;
 
+    /**
+     * Log level quiet {@value}
+     */
     public static final int LOG_LEVEL_QUIET = 0;
 
     private SegmentHeader header;
@@ -96,7 +127,7 @@ public class Segment {
 
     private int logLevel;
 
-    private PrintWriter logStream;
+    private PrintWriter logPrintWriter;
 
     private byte[][] classFilesContents;
 
@@ -105,6 +136,12 @@ public class Segment {
     private boolean[] fileIsClass;
 
     private InputStream internalBuffer;
+
+    /**
+     * Constructs a new Segment.
+     */
+    public Segment() {
+    }
 
     private ClassFile buildClassFile(final int classNum) {
         final ClassFile classFile = new ClassFile();
@@ -324,38 +361,74 @@ public class Segment {
         return result;
     }
 
+    /**
+     * Gets the attribute definition bands.
+     *
+     * @return the attribute definition bands.
+     */
     protected AttrDefinitionBands getAttrDefinitionBands() {
         return attrDefinitionBands;
     }
 
+    /**
+     * Gets the class bands.
+     *
+     * @return the class bands.
+     */
     protected ClassBands getClassBands() {
         return classBands;
     }
 
+    /**
+     * Gets the constant pool.
+     *
+     * @return the constant pool.
+     */
     public SegmentConstantPool getConstantPool() {
         return cpBands.getConstantPool();
     }
 
+    /**
+     * Gets the constant pool bands.
+     *
+     * @return the constant pool bands.
+     */
     protected CpBands getCpBands() {
         return cpBands;
     }
 
+    /**
+     * Gets the inner class bands.
+     *
+     * @return the inner class bands.
+     */
     protected IcBands getIcBands() {
         return icBands;
     }
 
+    /**
+     * Gets the segment header.
+     *
+     * @return the segment header.
+     */
     public SegmentHeader getSegmentHeader() {
         return header;
     }
 
-    public void log(final int logLevel, final String message) {
-        if (this.logLevel >= logLevel) {
-            logStream.println(message);
+    /**
+     * Logs a message.
+     *
+     * @param messageLevel the message level.
+     * @param message the message.
+     */
+    public void log(final int messageLevel, final String message) {
+        if (logLevel >= messageLevel && logPrintWriter != null) {
+            logPrintWriter.println(message);
         }
     }
 
     /**
-     * Override the archive's deflate hint with the given boolean
+     * Overrides the archive's deflate hint with the given boolean
      *
      * @param deflateHint the deflate hint to use
      */
@@ -365,7 +438,7 @@ public class Segment {
     }
 
     /**
-     * This performs the actual work of parsing against a non-static instance of Segment. This method is intended to run concurrently for multiple segments.
+     * Performs the actual work of parsing against a non-static instance of Segment. This method is intended to run concurrently for multiple segments.
      *
      * @throws IOException      if a problem occurs during reading from the underlying stream
      * @throws Pack200Exception if a problem occurs with an unexpected value or unsupported codec
@@ -445,18 +518,32 @@ public class Segment {
         bcBands.read(in);
         fileBands = new FileBands(this);
         fileBands.read(in);
-
         fileBands.processFileBits();
     }
 
+    /**
+     * Sets the log level.
+     *
+     * @param logLevel the log level.
+     */
     public void setLogLevel(final int logLevel) {
         this.logLevel = logLevel;
     }
 
+    /**
+     * Sets the log output stream.
+     *
+     * @param logStream log output stream.
+     */
     public void setLogStream(final OutputStream logStream) {
-        this.logStream = new PrintWriter(new OutputStreamWriter(logStream, Charset.defaultCharset()), false);
+        this.logPrintWriter = logStream != null ? new PrintWriter(new OutputStreamWriter(logStream, Charset.defaultCharset()), false) : null;
     }
 
+    /**
+     * Sets whether unpacking buffers its input.
+     *
+     * @param value whether unpacking buffers its input.
+     */
     public void setPreRead(final boolean value) {
         doPreRead = value;
     }
@@ -482,9 +569,6 @@ public class Segment {
         parseSegment();
     }
 
-    /*
-     * Package-private accessors for unpacking stages
-     */
     void unpackRead(final InputStream inputStream) throws IOException, Pack200Exception {
         @SuppressWarnings("resource")
         final InputStream in = Pack200UnpackerAdapter.newBoundedInputStream(inputStream);
@@ -505,9 +589,7 @@ public class Segment {
 
     void unpackWrite(final JarOutputStream out) throws IOException {
         writeJar(out);
-        if (logStream != null) {
-            logStream.close();
-        }
+        IOUtils.close(logPrintWriter);
     }
 
     /**

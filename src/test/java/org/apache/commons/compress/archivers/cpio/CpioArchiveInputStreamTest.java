@@ -18,38 +18,33 @@
  */
 package org.apache.commons.compress.archivers.cpio;
 
+import static org.apache.commons.lang3.reflect.FieldUtils.readDeclaredField;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 import org.apache.commons.compress.AbstractTest;
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
+import org.junitpioneer.jupiter.Issue;
 
-public class CpioArchiveInputStreamTest extends AbstractTest {
-
-    private long consumeEntries(final CpioArchiveInputStream in) throws IOException {
-        long count = 0;
-        CpioArchiveEntry entry;
-        while ((entry = in.getNextEntry()) != null) {
-            count++;
-            assertNotNull(entry);
-        }
-        return count;
-    }
+class CpioArchiveInputStreamTest extends AbstractTest {
 
     @Test
-    public void testCpioUnarchive() throws Exception {
+    void testCpioUnarchive() throws Exception {
         final StringBuilder expected = new StringBuilder();
         expected.append("./test1.xml<?xml version=\"1.0\"?>\n");
         expected.append("<empty/>./test2.xml<?xml version=\"1.0\"?>\n");
         expected.append("<empty/>\n");
         final StringBuilder result = new StringBuilder();
-        try (CpioArchiveInputStream in = new CpioArchiveInputStream(newInputStream("bla.cpio"))) {
+        try (CpioArchiveInputStream in =
+                CpioArchiveInputStream.builder().setURI(getURI("bla.cpio")).get()) {
             CpioArchiveEntry entry;
             while ((entry = in.getNextEntry()) != null) {
                 result.append(entry.getName());
@@ -63,36 +58,82 @@ public class CpioArchiveInputStreamTest extends AbstractTest {
     }
 
     @Test
-    public void testCpioUnarchiveCreatedByRedlineRpm() throws Exception {
+    void testCpioUnarchiveCreatedByRedlineRpm() throws Exception {
         long count = 0;
-        try (CpioArchiveInputStream in = new CpioArchiveInputStream(newInputStream("redline.cpio"))) {
+        try (CpioArchiveInputStream in = CpioArchiveInputStream.builder()
+                .setURI(getURI("redline.cpio"))
+                .get()) {
             count = consumeEntries(in);
         }
         assertEquals(count, 1);
     }
 
     @Test
-    public void testCpioUnarchiveMultibyteCharName() throws Exception {
+    void testCpioUnarchiveMultibyteCharName() throws Exception {
         long count = 0;
-        try (CpioArchiveInputStream in = new CpioArchiveInputStream(newInputStream("COMPRESS-459.cpio"), StandardCharsets.UTF_8.name())) {
+        try (CpioArchiveInputStream in = CpioArchiveInputStream.builder()
+                .setURI(getURI("COMPRESS-459.cpio"))
+                .setCharset(StandardCharsets.UTF_8)
+                .get()) {
             count = consumeEntries(in);
         }
         assertEquals(2, count);
     }
 
     @Test
-    public void testInvalidLongValueInMetadata() throws Exception {
-        try (InputStream in = newInputStream("org/apache/commons/compress/cpio/bad_long_value.cpio");
-             CpioArchiveInputStream archive = new CpioArchiveInputStream(in)) {
+    @Issue("https://issues.apache.org/jira/browse/COMPRESS-711")
+    void testCrcVerification() throws Exception {
+        try (CpioArchiveInputStream archive = CpioArchiveInputStream.builder().setURI(getURI("bla.cpio")).get()) {
+            assertNotNull(archive.getNextEntry());
+            final byte[] buffer = new byte[1024];
+            // Read with an offset to test that the right bytes are checksummed
+            while (archive.read(buffer, 1, 1023) != -1) {
+                // noop
+            }
+        }
+    }
+
+    @Test
+    void testEndOfFileInEntry_c_namesize_0xFFFFFFFF() throws Exception {
+        // CPIO header with c_namesize = 0xFFFFFFFF
+        // @formatter:off
+        final String header =
+                "070701" + // c_magic
+                "00000000" + // c_ino
+                "000081A4" + // c_mode
+                "00000000" + // c_uid
+                "00000000" + // c_gid
+                "00000001" + // c_nlink
+                "00000000" + // c_mtime
+                "00000000" + // c_filesize
+                "00000000" + // c_devmajor
+                "00000000" + // c_devminor
+                "00000000" + // c_rdevmajor
+                "00000000" + // c_rdevminor
+                "FFFFFFFF" + // c_namesize
+                "00000000"; // c_check
+        // @formatter:on
+        final byte[] data = new byte[header.getBytes(StandardCharsets.US_ASCII).length + 1];
+        System.arraycopy(header.getBytes(), 0, data, 0, header.getBytes().length);
+        try (CpioArchiveInputStream cpio = CpioArchiveInputStream.builder().setByteArray(data).get()) {
+            assertThrows(ArchiveException.class, () -> cpio.getNextEntry());
+        }
+    }
+
+    @Test
+    void testInvalidLongValueInMetadata() throws Exception {
+        try (CpioArchiveInputStream archive = CpioArchiveInputStream.builder()
+                .setURI(getURI("org/apache/commons/compress/cpio/bad_long_value.cpio"))
+                .get()) {
             assertThrows(IOException.class, archive::getNextEntry);
         }
     }
 
     @Test
-    public void testMultiByteReadConsistentlyReturnsMinusOneAtEof() throws Exception {
+    void testMultiByteReadConsistentlyReturnsMinusOneAtEof() throws Exception {
         final byte[] buf = new byte[2];
-        try (InputStream in = newInputStream("bla.cpio");
-                CpioArchiveInputStream archive = new CpioArchiveInputStream(in)) {
+        try (CpioArchiveInputStream archive =
+                     CpioArchiveInputStream.builder().setURI(getURI("bla.cpio")).get()) {
             assertNotNull(archive.getNextEntry());
             IOUtils.toByteArray(archive);
             assertEquals(-1, archive.read(buf));
@@ -101,14 +142,22 @@ public class CpioArchiveInputStreamTest extends AbstractTest {
     }
 
     @Test
-    public void testSingleByteReadConsistentlyReturnsMinusOneAtEof() throws Exception {
-        try (InputStream in = newInputStream("bla.cpio");
-                CpioArchiveInputStream archive = new CpioArchiveInputStream(in)) {
+    void testSingleArgumentConstructor() throws Exception {
+        final InputStream inputStream = mock(InputStream.class);
+        try (CpioArchiveInputStream archiveStream = new CpioArchiveInputStream(inputStream)) {
+            assertEquals(StandardCharsets.US_ASCII, archiveStream.getCharset());
+            assertEquals(512, readDeclaredField(archiveStream, "blockSize", true));
+        }
+    }
+
+    @Test
+    void testSingleByteReadConsistentlyReturnsMinusOneAtEof() throws Exception {
+        try (CpioArchiveInputStream archive =
+                CpioArchiveInputStream.builder().setURI(getURI("bla.cpio")).get()) {
             assertNotNull(archive.getNextEntry());
             IOUtils.toByteArray(archive);
             assertEquals(-1, archive.read());
             assertEquals(-1, archive.read());
         }
     }
-
 }

@@ -23,7 +23,14 @@ import org.apache.commons.compress.utils.OsgiUtils;
 /**
  * Utility code for the Zstandard compression format.
  *
+ * <p>
+ * This class avoids making the underlying {@code zstd} classes part of the public or protected API. The underlying implementation is provided through the
+ * <a href="https://github.com/luben/zstd-jni/">Zstandard JNI</a> library which is based on <a href="https://github.com/facebook/zstd/">zstd</a>.
+ * </p>
+ *
  * @ThreadSafe
+ * @see <a href="https://github.com/luben/zstd-jni/">Zstandard JNI</a>
+ * @see <a href="https://github.com/facebook/zstd/">zstd</a>
  * @since 1.16
  */
 public class ZstdUtils {
@@ -66,7 +73,7 @@ public class ZstdUtils {
     /**
      * Are the classes required to support Zstandard compression available?
      *
-     * @return true if the classes required to support Zstandard compression are available
+     * @return true if the classes required to support Zstandard compression are available.
      */
     public static boolean isZstdCompressionAvailable() {
         final CachedAvailability cachedResult = cachedZstdAvailability;
@@ -79,15 +86,14 @@ public class ZstdUtils {
     /**
      * Checks if the signature matches what is expected for a Zstandard file.
      *
-     * @param signature the bytes to check
-     * @param length    the number of bytes to check
-     * @return true if signature matches the Ztstandard or skippable frame magic bytes, false otherwise
+     * @param signature the bytes to check.
+     * @param length    the number of bytes to check.
+     * @return true if signature matches the Ztstandard or skippable frame magic bytes, false otherwise.
      */
     public static boolean matches(final byte[] signature, final int length) {
         if (length < ZSTANDARD_FRAME_MAGIC.length) {
             return false;
         }
-
         boolean isZstandard = true;
         for (int i = 0; i < ZSTANDARD_FRAME_MAGIC.length; ++i) {
             if (signature[i] != ZSTANDARD_FRAME_MAGIC[i]) {
@@ -98,7 +104,6 @@ public class ZstdUtils {
         if (isZstandard) {
             return true;
         }
-
         if (0x50 == (signature[0] & 0xF0)) {
             // skippable frame
             for (int i = 0; i < SKIPPABLE_FRAME_MAGIC.length; ++i) {
@@ -106,21 +111,19 @@ public class ZstdUtils {
                     return false;
                 }
             }
-
             return true;
         }
-
         return false;
     }
 
     /**
-     * Whether to cache the result of the Zstandard for Java check.
+     * Sets whether to cache the result of the Zstandard for Java check.
      *
      * <p>
      * This defaults to {@code false} in an OSGi environment and {@code true} otherwise.
      * </p>
      *
-     * @param doCache whether to cache the result
+     * @param doCache whether to cache the result.
      */
     public static void setCacheZstdAvailablity(final boolean doCache) {
         if (!doCache) {
@@ -131,7 +134,7 @@ public class ZstdUtils {
         }
     }
 
-    /** Private constructor to prevent instantiation of this utility class. */
+    /** Constructs a new instance. */
     private ZstdUtils() {
     }
 }

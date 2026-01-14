@@ -21,64 +21,69 @@ package org.apache.commons.compress.archivers.zip;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.compressors.lzw.LZWInputStream;
 
 /**
  * Input stream that decompresses ZIP method 1 (unshrinking). A variation of the LZW algorithm, with some twists.
  *
  * @NotThreadSafe
- * @since 1.7
  */
 final class UnshrinkingInputStream extends LZWInputStream {
+
     private static final int MAX_CODE_SIZE = 13;
     private static final int MAX_TABLE_SIZE = 1 << MAX_CODE_SIZE;
-    private final boolean[] isUsed;
+    private final boolean[] inUse;
 
     /**
-     * IOException is not actually thrown!
+     * Constructs a new instance.
      *
-     * @param inputStream
+     * @param inputStream Input stream.
      */
     UnshrinkingInputStream(final InputStream inputStream) {
         super(inputStream, ByteOrder.LITTLE_ENDIAN);
         setClearCode(DEFAULT_CODE_SIZE);
         initializeTables(MAX_CODE_SIZE);
-        isUsed = new boolean[getPrefixesLength()];
-        for (int i = 0; i < 1 << 8; i++) {
-            isUsed[i] = true;
-        }
+        inUse = new boolean[getPrefixesLength()];
+        Arrays.fill(inUse, 0, 256, true);
         setTableSize(getClearCode() + 1);
     }
 
     @Override
     protected int addEntry(final int previousCode, final byte character) throws IOException {
         int tableSize = getTableSize();
-        while (tableSize < MAX_TABLE_SIZE && isUsed[tableSize]) {
+        while (tableSize < MAX_TABLE_SIZE && inUse[tableSize]) {
             tableSize++;
         }
         setTableSize(tableSize);
         final int idx = addEntry(previousCode, character, MAX_TABLE_SIZE);
         if (idx >= 0) {
-            isUsed[idx] = true;
+            inUse[idx] = true;
         }
         return idx;
     }
 
+    /**
+     * Decompresses the next symbol.
+     * <pre>{@code
+     *  table entry table entry
+     *  _____________ _____
+     *  table entry / \ / \
+     *  ____________/ \ \
+     *  / / \ / \ \
+     *  +---+---+---+---+---+---+---+---+---+---+
+     *  | . | . | . | . | . | . | . | . | . | . |
+     *  +---+---+---+---+---+---+---+---+---+---+
+     *  |<--------->|<------------->|<----->|<->|
+     *  symbol symbol symbol symbol
+     * }</pre>
+     *
+     * @return the next symbol or -1 at end-of-file.
+     */
     @Override
     protected int decompressNextSymbol() throws IOException {
-        //
-        // table entry table entry
-        // _____________ _____
-        // table entry / \ / \
-        // ____________/ \ \
-        // / / \ / \ \
-        // +---+---+---+---+---+---+---+---+---+---+
-        // | . | . | . | . | . | . | . | . | . | . |
-        // +---+---+---+---+---+---+---+---+---+---+
-        // |<--------->|<------------->|<----->|<->|
-        // symbol symbol symbol symbol
-        //
         final int code = readNextCode();
         if (code < 0) {
             return -1;
@@ -86,7 +91,7 @@ final class UnshrinkingInputStream extends LZWInputStream {
         if (code != getClearCode()) {
             boolean addedUnfinishedEntry = false;
             int effectiveCode = code;
-            if (!isUsed[code]) {
+            if (!inUse[code]) {
                 effectiveCode = addRepeatOfPreviousCode();
                 addedUnfinishedEntry = true;
             }
@@ -94,34 +99,37 @@ final class UnshrinkingInputStream extends LZWInputStream {
         }
         final int subCode = readNextCode();
         if (subCode < 0) {
-            throw new IOException("Unexpected EOF;");
+            throw new ArchiveException("Unexpected EOF");
         }
         if (subCode == 1) {
             if (getCodeSize() >= MAX_CODE_SIZE) {
-                throw new IOException("Attempt to increase code size beyond maximum");
+                throw new ArchiveException("Attempt to increase code size beyond maximum");
             }
             incrementCodeSize();
         } else if (subCode == 2) {
             partialClear();
             setTableSize(getClearCode() + 1);
         } else {
-            throw new IOException("Invalid clear code subcode " + subCode);
+            throw new ArchiveException("Invalid clear code subcode %s", subCode);
         }
         return 0;
     }
 
     private void partialClear() {
         final boolean[] isParent = new boolean[MAX_TABLE_SIZE];
-        for (int i = 0; i < isUsed.length; i++) {
-            if (isUsed[i] && getPrefix(i) != UNUSED_PREFIX) {
+        for (int i = 0; i < inUse.length; i++) {
+            if (inUse[i] && getPrefix(i) != UNUSED_PREFIX) {
                 isParent[getPrefix(i)] = true;
             }
         }
         for (int i = getClearCode() + 1; i < isParent.length; i++) {
             if (!isParent[i]) {
-                isUsed[i] = false;
+                inUse[i] = false;
                 setPrefix(i, UNUSED_PREFIX);
             }
         }
+        // Resets previous code
+        // See COMPRESS-713
+        resetPreviousCode();
     }
 }

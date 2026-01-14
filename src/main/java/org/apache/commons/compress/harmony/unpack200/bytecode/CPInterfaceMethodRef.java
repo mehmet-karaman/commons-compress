@@ -21,6 +21,8 @@ package org.apache.commons.compress.harmony.unpack200.bytecode;
 
 /**
  * Interface method reference constant pool entry.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPInterfaceMethodRef extends CPRef {
 
@@ -28,6 +30,13 @@ public class CPInterfaceMethodRef extends CPRef {
 
     private int cachedHashCode;
 
+    /**
+     * Constructs a new CPInterfaceMethodRef.
+     *
+     * @param className the class name.
+     * @param descriptor the method descriptor.
+     * @param globalIndex the global index.
+     */
     public CPInterfaceMethodRef(final CPClass className, final CPNameAndType descriptor, final int globalIndex) {
         super(CP_InterfaceMethodref, className, descriptor, globalIndex);
     }

@@ -24,12 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,17 +38,17 @@ import org.junit.jupiter.params.provider.ValueSource;
 /**
  * Tests COMPRESS-678.
  */
-public class Compress678Test {
+class Compress678Test {
 
     @ParameterizedTest
     @ValueSource(ints = { 15, 16, 17, 18, 32, 64, 128 })
-    public void test_LONGFILE_BSD(final int fileNameLen) throws IOException {
+    void test_LONGFILE_BSD(final int fileNameLen) throws IOException {
         test_LONGFILE_BSD(StringUtils.repeat('x', fileNameLen));
     }
 
     /**
      * @param fileName
-     * @throws IOException
+     * @throws IOException if an I/O error occurs.
      * @throws FileNotFoundException
      */
     private void test_LONGFILE_BSD(final String fileName) throws IOException, FileNotFoundException {
@@ -68,7 +68,7 @@ public class Compress678Test {
             arOut.write(data);
             arOut.closeArchiveEntry();
         }
-        try (ArArchiveInputStream arIn = new ArArchiveInputStream(new FileInputStream(file))) {
+        try (ArArchiveInputStream arIn = ArArchiveInputStream.builder().setFile(file).get()) {
             final ArArchiveEntry entry = arIn.getNextEntry();
             assertEquals(fileName, entry.getName());
             // Fix
@@ -81,12 +81,12 @@ public class Compress678Test {
 
     @ParameterizedTest
     @ValueSource(ints = { 15, 16, 17, 18, 32, 64, 128 })
-    public void test_LONGFILE_BSD_with_spaces(final int fileNameLen) throws IOException {
+    void test_LONGFILE_BSD_with_spaces(final int fileNameLen) throws IOException {
         test_LONGFILE_BSD(StringUtils.repeat("x y", fileNameLen / 3));
     }
 
     @Test
-    public void test_LONGFILE_ERROR() throws IOException {
+    void test_LONGFILE_ERROR() throws IOException {
         final File file = new File("target/Compress678Test-a.ar");
         Files.deleteIfExists(file.toPath());
         // First entry's name length is longer than 16 bytes and odd
@@ -96,12 +96,12 @@ public class Compress678Test {
         try (ArArchiveOutputStream arOut = new ArArchiveOutputStream(new FileOutputStream(file))) {
             arOut.setLongFileMode(ArArchiveOutputStream.LONGFILE_ERROR);
             // java.io.IOException: File name too long, > 16 chars: 01234567891234567
-            assertThrows(IOException.class, () -> arOut.putArchiveEntry(new ArArchiveEntry(name1, data.length)));
+            assertThrows(ArchiveException.class, () -> arOut.putArchiveEntry(new ArArchiveEntry(name1, data.length)));
         }
     }
 
     @Test
-    public void testShortName() throws IOException {
+    void testShortName() throws IOException {
         final File file = new File("target/Compress678Test-c.ar");
         Files.deleteIfExists(file.toPath());
         // First entry's name length is <= than 16 bytes and odd
@@ -119,7 +119,7 @@ public class Compress678Test {
             arOut.write(data);
             arOut.closeArchiveEntry();
         }
-        try (ArArchiveInputStream arIn = new ArArchiveInputStream(new FileInputStream(file))) {
+        try (ArArchiveInputStream arIn = ArArchiveInputStream.builder().setFile(file).get()) {
             final ArArchiveEntry entry = arIn.getNextEntry();
             assertEquals(name1, entry.getName());
             assertNotNull(arIn.getNextEntry());

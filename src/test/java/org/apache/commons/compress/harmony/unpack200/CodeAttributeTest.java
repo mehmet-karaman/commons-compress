@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.compress.harmony.pack200.Pack200Exception;
 import org.apache.commons.compress.harmony.unpack200.bytecode.CPFieldRef;
 import org.apache.commons.compress.harmony.unpack200.bytecode.CPMethodRef;
 import org.apache.commons.compress.harmony.unpack200.bytecode.CPString;
@@ -36,12 +37,12 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests for CodeAttribute
  */
-public class CodeAttributeTest {
+class CodeAttributeTest {
 
     public class MockCodeAttribute extends CodeAttribute {
 
-        public MockCodeAttribute(final int maxStack, final int maxLocals, final byte[] codePacked, final Segment segment, final OperandManager operandManager,
-                final List<ExceptionTableEntry> exceptionTable) {
+        MockCodeAttribute(final int maxStack, final int maxLocals, final byte[] codePacked, final Segment segment, final OperandManager operandManager,
+                final List<ExceptionTableEntry> exceptionTable) throws Pack200Exception {
             super(maxStack, maxLocals, codePacked, segment, operandManager, exceptionTable);
         }
 
@@ -53,7 +54,7 @@ public class CodeAttributeTest {
 
     public class MockCpBands extends CpBands {
 
-        public MockCpBands(final Segment segment) {
+        MockCpBands(final Segment segment) {
             super(segment);
         }
 
@@ -76,7 +77,7 @@ public class CodeAttributeTest {
 
     public class MockOperandManager extends OperandManager {
 
-        public MockOperandManager() {
+        MockOperandManager() {
             super(new int[] {}, // bcCaseCount
                     new int[] {}, // bcCaseValues
                     new int[] {}, // bcByte
@@ -111,7 +112,7 @@ public class CodeAttributeTest {
 
     public class MockSegmentConstantPool extends SegmentConstantPool {
 
-        public MockSegmentConstantPool(final CpBands bands) {
+        MockSegmentConstantPool(final CpBands bands) {
             super(bands);
         }
 
@@ -140,7 +141,7 @@ public class CodeAttributeTest {
     };
 
     @Test
-    public void testLength() {
+    void testLength() throws Pack200Exception {
         final OperandManager operandManager = new MockOperandManager();
         operandManager.setSegment(segment);
         operandManager.setCurrentClass("java/lang/Foo");
@@ -158,7 +159,7 @@ public class CodeAttributeTest {
     }
 
     @Test
-    public void testMixedByteCodes() {
+    void testMixedByteCodes() throws Pack200Exception {
         final OperandManager operandManager = new MockOperandManager();
         operandManager.setSegment(segment);
         operandManager.setCurrentClass("java/lang/Foo");
@@ -180,7 +181,7 @@ public class CodeAttributeTest {
     }
 
     @Test
-    public void testSingleByteCodes() {
+    void testSingleByteCodes() throws Pack200Exception {
         final OperandManager operandManager = new MockOperandManager();
         operandManager.setSegment(segment);
         operandManager.setCurrentClass("java/lang/Foo");

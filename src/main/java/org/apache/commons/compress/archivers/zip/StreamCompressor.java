@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.commons.compress.archivers.zip;
 
 import java.io.Closeable;
@@ -40,6 +41,7 @@ import org.apache.commons.compress.parallel.ScatterGatherBackingStore;
 public abstract class StreamCompressor implements Closeable {
 
     private static final class DataOutputCompressor extends StreamCompressor {
+
         private final DataOutput raf;
 
         DataOutputCompressor(final Deflater deflater, final DataOutput raf) {
@@ -54,6 +56,7 @@ public abstract class StreamCompressor implements Closeable {
     }
 
     private static final class OutputStreamCompressor extends StreamCompressor {
+
         private final OutputStream os;
 
         OutputStreamCompressor(final Deflater deflater, final OutputStream os) {
@@ -68,6 +71,7 @@ public abstract class StreamCompressor implements Closeable {
     }
 
     private static final class ScatterGatherBackingStoreCompressor extends StreamCompressor {
+
         private final ScatterGatherBackingStore bs;
 
         ScatterGatherBackingStoreCompressor(final Deflater deflater, final ScatterGatherBackingStore bs) {
@@ -82,6 +86,7 @@ public abstract class StreamCompressor implements Closeable {
     }
 
     private static final class SeekableByteChannelCompressor extends StreamCompressor {
+
         private final SeekableByteChannel channel;
 
         SeekableByteChannelCompressor(final Deflater deflater, final SeekableByteChannel channel) {
@@ -107,9 +112,9 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Creates a stream compressor with the given compression level.
      *
-     * @param os       The DataOutput to receive output
-     * @param deflater The deflater to use for the compressor
-     * @return A stream compressor
+     * @param os       The DataOutput to receive output.
+     * @param deflater The deflater to use for the compressor.
+     * @return A stream compressor.
      */
     static StreamCompressor create(final DataOutput os, final Deflater deflater) {
         return new DataOutputCompressor(deflater, os);
@@ -118,9 +123,9 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Creates a stream compressor with the given compression level.
      *
-     * @param compressionLevel The {@link Deflater} compression level
-     * @param bs               The ScatterGatherBackingStore to receive output
-     * @return A stream compressor
+     * @param compressionLevel The {@link Deflater} compression level.
+     * @param bs               The ScatterGatherBackingStore to receive output.
+     * @return A stream compressor.
      */
     public static StreamCompressor create(final int compressionLevel, final ScatterGatherBackingStore bs) {
         final Deflater deflater = new Deflater(compressionLevel, true);
@@ -130,8 +135,8 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Creates a stream compressor with the default compression level.
      *
-     * @param os The stream to receive output
-     * @return A stream compressor
+     * @param os The stream to receive output.
+     * @return A stream compressor.
      */
     static StreamCompressor create(final OutputStream os) {
         return create(os, new Deflater(Deflater.DEFAULT_COMPRESSION, true));
@@ -140,9 +145,9 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Creates a stream compressor with the given compression level.
      *
-     * @param os       The stream to receive output
-     * @param deflater The deflater to use
-     * @return A stream compressor
+     * @param os       The stream to receive output.
+     * @param deflater The deflater to use.
+     * @return A stream compressor.
      */
     static StreamCompressor create(final OutputStream os, final Deflater deflater) {
         return new OutputStreamCompressor(deflater, os);
@@ -151,8 +156,8 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Creates a stream compressor with the default compression level.
      *
-     * @param bs The ScatterGatherBackingStore to receive output
-     * @return A stream compressor
+     * @param bs The ScatterGatherBackingStore to receive output.
+     * @return A stream compressor.
      */
     public static StreamCompressor create(final ScatterGatherBackingStore bs) {
         return create(Deflater.DEFAULT_COMPRESSION, bs);
@@ -161,9 +166,9 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Creates a stream compressor with the given compression level.
      *
-     * @param os       The SeekableByteChannel to receive output
-     * @param deflater The deflater to use for the compressor
-     * @return A stream compressor
+     * @param os       The SeekableByteChannel to receive output.
+     * @param deflater The deflater to use for the compressor.
+     * @return A stream compressor.
      * @since 1.13
      */
     static StreamCompressor create(final SeekableByteChannel os, final Deflater deflater) {
@@ -171,17 +176,11 @@ public abstract class StreamCompressor implements Closeable {
     }
 
     private final Deflater deflater;
-
     private final CRC32 crc = new CRC32();
-
     private long writtenToOutputStreamForLastEntry;
-
     private long sourcePayloadLength;
-
     private long totalWrittenToOutputStream;
-
     private final byte[] outputBuffer = new byte[BUFFER_SIZE];
-
     private final byte[] readerBuf = new byte[BUFFER_SIZE];
 
     StreamCompressor(final Deflater deflater) {
@@ -203,15 +202,13 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Deflates the given source using the supplied compression method
      *
-     * @param source The source to compress
-     * @param method The #ZipArchiveEntry compression method
-     * @throws IOException When failures happen
+     * @param source The source to compress.
+     * @param method The #ZipArchiveEntry compression method.
+     * @throws IOException When failures happen.
      */
-
     public void deflate(final InputStream source, final int method) throws IOException {
         reset();
         int length;
-
         while ((length = source.read(readerBuf, 0, readerBuf.length)) >= 0) {
             write(readerBuf, 0, length, method);
         }
@@ -236,7 +233,7 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Gets the number of bytes read from the source stream
      *
-     * @return The number of bytes read, never negative
+     * @return The number of bytes read, never negative.
      */
     public long getBytesRead() {
         return sourcePayloadLength;
@@ -245,7 +242,7 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Gets the number of bytes written to the output for the last entry
      *
-     * @return The number of bytes, never negative
+     * @return The number of bytes, never negative.
      */
     public long getBytesWrittenForLastEntry() {
         return writtenToOutputStreamForLastEntry;
@@ -254,9 +251,8 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Gets the CRC-32 of the last deflated file
      *
-     * @return the CRC-32
+     * @return the CRC-32.
      */
-
     public long getCrc32() {
         return crc.getValue();
     }
@@ -264,7 +260,7 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Gets the total number of bytes written to the output for all files
      *
-     * @return The number of bytes, never negative
+     * @return The number of bytes, never negative.
      */
     public long getTotalBytesWritten() {
         return totalWrittenToOutputStream;
@@ -280,12 +276,12 @@ public abstract class StreamCompressor implements Closeable {
     /**
      * Writes bytes to ZIP entry.
      *
-     * @param b      the byte array to write
-     * @param offset the start position to write from
-     * @param length the number of bytes to write
-     * @param method the comrpession method to use
-     * @return the number of bytes written to the stream this time
-     * @throws IOException on error
+     * @param b      the byte array to write.
+     * @param offset the start position to write from.
+     * @param length the number of bytes to write.
+     * @param method the comrpession method to use.
+     * @return the number of bytes written to the stream this time.
+     * @throws IOException on error.
      */
     long write(final byte[] b, final int offset, final int length, final int method) throws IOException {
         final long current = writtenToOutputStreamForLastEntry;
@@ -299,10 +295,24 @@ public abstract class StreamCompressor implements Closeable {
         return writtenToOutputStreamForLastEntry - current;
     }
 
+    /**
+     * Writes the specified byte array to the output stream.
+     *
+     * @param data   the data.
+     * @exception IOException if an I/O error occurs.
+     */
     public void writeCounted(final byte[] data) throws IOException {
         writeCounted(data, 0, data.length);
     }
 
+    /**
+     * Writes {@code len} bytes from the specified byte array starting at offset {@code off} to the output stream.
+     *
+     * @param data   the data.
+     * @param offset the start offset in the data.
+     * @param length the number of bytes to write.
+     * @exception IOException if an I/O error occurs.
+     */
     public void writeCounted(final byte[] data, final int offset, final int length) throws IOException {
         writeOut(data, offset, length);
         writtenToOutputStreamForLastEntry += length;
@@ -329,5 +339,13 @@ public abstract class StreamCompressor implements Closeable {
         }
     }
 
+    /**
+     * Writes {@code len} bytes from the specified byte array starting at offset {@code off} to the output stream.
+     *
+     * @param data   the data.
+     * @param offset the start offset in the data.
+     * @param length the number of bytes to write.
+     * @exception IOException if an I/O error occurs.
+     */
     protected abstract void writeOut(byte[] data, int offset, int length) throws IOException;
 }

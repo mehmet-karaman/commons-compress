@@ -29,11 +29,13 @@ import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.junit.jupiter.api.Test;
 
-public class ChainingTest extends AbstractTest {
+class ChainingTest extends AbstractTest {
 
     @Test
-    public void testTarBzip2() throws Exception {
-        try (TarArchiveInputStream is = new TarArchiveInputStream(new BZip2CompressorInputStream(newInputStream("bla.tar.bz2")))) {
+    void testTarBzip2() throws Exception {
+        try (TarArchiveInputStream is = TarArchiveInputStream.builder()
+                .setInputStream(new BZip2CompressorInputStream(newInputStream("bla.tar.bz2")))
+                .get()) {
             final TarArchiveEntry entry = is.getNextEntry();
             assertNotNull(entry);
             assertEquals("test1.xml", entry.getName());
@@ -42,8 +44,12 @@ public class ChainingTest extends AbstractTest {
     }
 
     @Test
-    public void testTarGzip() throws Exception {
-        try (TarArchiveInputStream is = new TarArchiveInputStream(new GzipCompressorInputStream(newInputStream("bla.tgz")))) {
+    void testTarGzip() throws Exception {
+        try (TarArchiveInputStream is = TarArchiveInputStream.builder()
+                .setInputStream(GzipCompressorInputStream.builder()
+                        .setURI(getURI("bla.tgz"))
+                        .get())
+                .get()) {
             final TarArchiveEntry entry = is.getNextEntry();
             assertNotNull(entry);
             assertEquals("test1.xml", entry.getName());

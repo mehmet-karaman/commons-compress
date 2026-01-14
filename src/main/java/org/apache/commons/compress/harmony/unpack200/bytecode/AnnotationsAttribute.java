@@ -23,13 +23,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.compress.harmony.pack200.Pack200Exception;
+
 /**
- * Abstract superclass for Annotations attributes
+ * Abstracts Annotations attributes.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public abstract class AnnotationsAttribute extends Attribute {
 
     /**
-     * Class to represent the annotation structure for class file attributes
+     * Represents the annotation structure for class file attributes.
      */
     public static class Annotation {
 
@@ -42,6 +46,14 @@ public abstract class AnnotationsAttribute extends Attribute {
         private int typeIndex;
         private int[] nameIndexes;
 
+        /**
+         * Constructs a new instance.
+         *
+         * @param numPairs      Number of pairs, matches the lengths of {@code elementNames} and {@code elementValues}.
+         * @param type          Type.
+         * @param elementNames  Element names.
+         * @param elementValues Element values.
+         */
         public Annotation(final int numPairs, final CPUTF8 type, final CPUTF8[] elementNames, final ElementValue[] elementValues) {
             this.numPairs = numPairs;
             this.type = type;
@@ -49,6 +61,11 @@ public abstract class AnnotationsAttribute extends Attribute {
             this.elementValues = elementValues;
         }
 
+        /**
+         * Gets a list of class file entries.
+         *
+         * @return a list of class file entries.
+         */
         public List<Object> getClassFileEntries() {
             final List<Object> entries = new ArrayList<>();
             for (int i = 0; i < elementNames.length; i++) {
@@ -59,6 +76,11 @@ public abstract class AnnotationsAttribute extends Attribute {
             return entries;
         }
 
+        /**
+         * Gets the cumulative length of all element values.
+         *
+         * @return the cumulative length of all element values.
+         */
         public int getLength() {
             int length = 4;
             for (int i = 0; i < numPairs; i++) {
@@ -68,6 +90,11 @@ public abstract class AnnotationsAttribute extends Attribute {
             return length;
         }
 
+        /**
+         * Resolves this instance against a given pool.
+         *
+         * @param pool a class constant pool.
+         */
         public void resolve(final ClassConstantPool pool) {
             type.resolve(pool);
             typeIndex = pool.indexOf(type);
@@ -79,6 +106,12 @@ public abstract class AnnotationsAttribute extends Attribute {
             }
         }
 
+        /**
+         * Writes this instance to the given output stream.
+         *
+         * @param dos the output stream.
+         * @throws IOException if an I/O error occurs.
+         */
         public void writeBody(final DataOutputStream dos) throws IOException {
             dos.writeShort(typeIndex);
             dos.writeShort(numPairs);
@@ -89,6 +122,9 @@ public abstract class AnnotationsAttribute extends Attribute {
         }
     }
 
+    /**
+     * Pairs a tag and value.
+     */
     public static class ElementValue {
 
         private final Object value;
@@ -97,11 +133,22 @@ public abstract class AnnotationsAttribute extends Attribute {
         // resolved value index if it's a constant
         private int constantValueIndex = -1;
 
+        /**
+         * Constructs a new instance.
+         *
+         * @param tag a tag.
+         * @param value a value.
+         */
         public ElementValue(final int tag, final Object value) {
             this.tag = tag;
             this.value = value;
         }
 
+        /**
+         * Gets a list of class file entries.
+         *
+         * @return a list of class file entries.
+         */
         public List<Object> getClassFileEntries() {
             final List<Object> entries = new ArrayList<>(1);
             if (value instanceof CPNameAndType) {
@@ -122,6 +169,11 @@ public abstract class AnnotationsAttribute extends Attribute {
             return entries;
         }
 
+        /**
+         * Gets the length.
+         *
+         * @return the length.
+         */
         public int getLength() {
             switch (tag) {
             case 'B':
@@ -150,6 +202,11 @@ public abstract class AnnotationsAttribute extends Attribute {
             return 0;
         }
 
+        /**
+         * Resolves this instance against a given pool.
+         *
+         * @param pool a class constant pool.
+         */
         public void resolve(final ClassConstantPool pool) {
             if (value instanceof CPConstant) {
                 ((CPConstant) value).resolve(pool);
@@ -172,6 +229,12 @@ public abstract class AnnotationsAttribute extends Attribute {
             }
         }
 
+        /**
+         * Writes this instance to the given output stream.
+         *
+         * @param dos the output stream.
+         * @throws IOException if an I/O error occurs.
+         */
         public void writeBody(final DataOutputStream dos) throws IOException {
             dos.writeByte(tag);
             if (constantValueIndex != -1) {
@@ -187,11 +250,16 @@ public abstract class AnnotationsAttribute extends Attribute {
                     nestedValue.writeBody(dos);
                 }
             } else {
-                throw new Error("");
+                throw new Pack200Exception("Value is not a CPNameAndType, Annotation, or ElementValue.");
             }
         }
     }
 
+    /**
+     * Constructs a new instance for an attribute name.
+     *
+     * @param attributeName an attribute name.
+     */
     public AnnotationsAttribute(final CPUTF8 attributeName) {
         super(attributeName);
     }

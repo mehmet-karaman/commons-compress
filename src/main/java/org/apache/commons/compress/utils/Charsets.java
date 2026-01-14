@@ -48,11 +48,6 @@ import java.nio.charset.StandardCharsets;
  * on output.)</dd>
  * </dl>
  *
- * <p>
- * This class best belongs in the Commons Lang or IO project. Even if a similar class is defined in another Commons component, it is not foreseen that Commons
- * Compress would be made to depend on another Commons component.
- * </p>
- *
  * @see <a href="https://docs.oracle.com/javase/8/docs/api/java/nio/charset/Charset.html">Standard charsets</a>
  * @see StandardCharsets
  * @since 1.4
@@ -153,7 +148,7 @@ public class Charsets {
      * Returns the given Charset or the default Charset if the given Charset is null.
      *
      * @param charset A charset or null.
-     * @return the given Charset or the default Charset if the given Charset is null
+     * @return the given Charset or the default Charset if the given Charset is null.
      */
     public static Charset toCharset(final Charset charset) {
         return charset == null ? Charset.defaultCharset() : charset;
@@ -163,11 +158,18 @@ public class Charsets {
      * Returns a Charset for the named charset. If the name is null, return the default Charset.
      *
      * @param charset The name of the requested charset, may be null.
-     * @return a Charset for the named charset
-     * @throws java.nio.charset.UnsupportedCharsetException If the named charset is unavailable
-     * @throws java.nio.charset.IllegalCharsetNameException If the given charset name is illegal
+     * @return a Charset for the named charset.
+     * @throws java.nio.charset.UnsupportedCharsetException If the named charset is unavailable.
+     * @throws java.nio.charset.IllegalCharsetNameException If the given charset name is illegal.
      */
     public static Charset toCharset(final String charset) {
         return charset == null ? Charset.defaultCharset() : Charset.forName(charset);
+    }
+
+    /**
+     * Constructs a new instance.
+     */
+    public Charsets() {
+        // empty
     }
 }

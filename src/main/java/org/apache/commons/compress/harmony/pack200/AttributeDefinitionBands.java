@@ -30,16 +30,44 @@ import org.objectweb.asm.Attribute;
 
 /**
  * Attribute Definition bands define how any unknown attributes should be read by the decompressor.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class AttributeDefinitionBands extends BandSet {
 
+    /**
+     * An attribute definition with context type, name, and layout information.
+     */
     public static class AttributeDefinition {
 
+        /**
+         * The index of this attribute definition.
+         */
         public int index;
+
+        /**
+         * The context type for this attribute definition.
+         */
         public int contextType;
+
+        /**
+         * The name of this attribute.
+         */
         public CPUTF8 name;
+
+        /**
+         * The layout of this attribute.
+         */
         public CPUTF8 layout;
 
+        /**
+         * Constructs a new AttributeDefinition.
+         *
+         * @param index the index of the attribute.
+         * @param contextType the context type.
+         * @param name the attribute name.
+         * @param layout the attribute layout.
+         */
         public AttributeDefinition(final int index, final int contextType, final CPUTF8 name, final CPUTF8 layout) {
             this.index = index;
             this.contextType = contextType;
@@ -80,6 +108,13 @@ public class AttributeDefinitionBands extends BandSet {
 
     private final Segment segment;
 
+    /**
+     * Constructs a new instance.
+     *
+     * @param segment the segment.
+     * @param effort the effort level.
+     * @param attributePrototypes the attribute prototypes.
+     */
     public AttributeDefinitionBands(final Segment segment, final int effort, final Attribute[] attributePrototypes) {
         super(effort, segment.getSegmentHeader());
         this.cpBands = segment.getCpBands();
@@ -201,18 +236,38 @@ public class AttributeDefinitionBands extends BandSet {
         segmentHeader.setAttribute_definition_count(attributeDefinitions.size());
     }
 
+    /**
+     * Gets the class attribute layouts.
+     *
+     * @return the class attribute layouts.
+     */
     public List<AttributeDefinition> getClassAttributeLayouts() {
         return classAttributeLayouts;
     }
 
+    /**
+     * Gets the code attribute layouts.
+     *
+     * @return the code attribute layouts.
+     */
     public List<AttributeDefinition> getCodeAttributeLayouts() {
         return codeAttributeLayouts;
     }
 
+    /**
+     * Gets the field attribute layouts.
+     *
+     * @return the field attribute layouts.
+     */
     public List<AttributeDefinition> getFieldAttributeLayouts() {
         return fieldAttributeLayouts;
     }
 
+    /**
+     * Gets the method attribute layouts.
+     *
+     * @return the method attribute layouts.
+     */
     public List<AttributeDefinition> getMethodAttributeLayouts() {
         return methodAttributeLayouts;
     }

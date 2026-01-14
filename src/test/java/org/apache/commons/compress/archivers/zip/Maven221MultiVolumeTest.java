@@ -23,10 +23,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 import org.apache.commons.compress.AbstractTest;
 import org.apache.commons.compress.archivers.ArchiveEntry;
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
  * This test is intended to prove that this error doesn't occur anymore. All entries but the last one are returned correctly, the last entry yields an
  * exception.
  */
-public class Maven221MultiVolumeTest extends AbstractTest {
+class Maven221MultiVolumeTest extends AbstractTest {
 
     private static final String[] ENTRIES = {
         // @formatter:off
@@ -63,18 +63,19 @@ public class Maven221MultiVolumeTest extends AbstractTest {
     private static final String LAST_ENTRY_NAME = "apache-maven-2.2.1/lib/maven-2.2.1-uber.jar";
 
     @Test
-    public void testRead7ZipMultiVolumeArchiveForFile() {
+    void testRead7ZipMultiVolumeArchiveForFile() {
         assertThrows(IOException.class, () -> ZipFile.builder().setFile(getFile("apache-maven-2.2.1.zip.001")).get());
     }
 
     @Test
-    public void testRead7ZipMultiVolumeArchiveForStream() throws IOException {
+    void testRead7ZipMultiVolumeArchiveForStream() throws IOException {
 
-        try (InputStream archive = newInputStream("apache-maven-2.2.1.zip.001");
-                ZipArchiveInputStream zi = new ZipArchiveInputStream(archive, null, false)) {
+        try (ZipArchiveInputStream zi = ZipArchiveInputStream.builder()
+                .setURI(getURI("apache-maven-2.2.1.zip.001"))
+                .setUseUnicodeExtraFields(false)
+                .get()) {
 
-            // these are the entries that are supposed to be processed
-            // correctly without any problems
+            // these are the entries that are supposed to be processed correctly without any problems.
             for (final String element : ENTRIES) {
                 assertEquals(element, zi.getNextEntry().getName());
             }
@@ -86,20 +87,19 @@ public class Maven221MultiVolumeTest extends AbstractTest {
 
             // before the fix, we'd get 0 bytes on this read and all
             // subsequent reads thus a client application might enter
-            // an infinite loop after the fix, we should get an
-            // exception
-            final IOException e1 = assertThrows(IOException.class, () -> {
+            // an infinite loop after the fix, we should get an exception.
+            final IOException e1 = assertThrows(ArchiveException.class, () -> {
                 while (zi.read(buffer) > 0) {
                     // empty
                 }
             }, "shouldn't be able to read from truncated entry");
             assertEquals("Truncated ZIP file", e1.getMessage());
 
-            final IOException e2 = assertThrows(IOException.class, () -> zi.read(buffer), "shouldn't be able to read from truncated entry after exception");
+            final IOException e2 = assertThrows(ArchiveException.class, () -> zi.read(buffer),
+                    "shouldn't be able to read from truncated entry after exception");
             assertEquals("Truncated ZIP file", e2.getMessage());
 
-            // and now we get another entry, which should also yield
-            // an exception
+            // and now we get another entry, which should also yield an exception.
             assertThrows(IOException.class, zi::getNextEntry, "shouldn't be able to read another entry from truncated file");
         }
     }

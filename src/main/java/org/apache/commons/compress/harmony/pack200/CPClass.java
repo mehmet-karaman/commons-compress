@@ -20,16 +20,23 @@ package org.apache.commons.compress.harmony.pack200;
 
 /**
  * Constant pool entry for a class.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPClass extends CPConstant<CPClass> {
 
     private final String className;
-    private final CPUTF8 utf8;
+    private final CPUTF8 value;
     private final boolean isInnerClass;
 
-    public CPClass(final CPUTF8 utf8) {
-        this.utf8 = utf8;
-        this.className = utf8.getUnderlyingString();
+    /**
+     * Constructs a new instance.
+     *
+     * @param value The value.
+     */
+    public CPClass(final CPUTF8 value) {
+        this.value = value;
+        this.className = value.getUnderlyingString();
         final char[] chars = className.toCharArray();
         for (final char element : chars) {
             if (element <= 0x2D) {
@@ -45,10 +52,20 @@ public class CPClass extends CPConstant<CPClass> {
         return className.compareTo(arg0.className);
     }
 
+    /**
+     * Gets the index in the CP UTF8 pool.
+     *
+     * @return the index.
+     */
     public int getIndexInCpUtf8() {
-        return utf8.getIndex();
+        return value.getIndex();
     }
 
+    /**
+     * Tests whether this is an inner class.
+     *
+     * @return true if this is an inner class.
+     */
     public boolean isInnerClass() {
         return isInnerClass;
     }

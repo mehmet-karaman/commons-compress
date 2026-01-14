@@ -16,52 +16,67 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.commons.compress.archivers.zip;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.WritableByteChannel;
+
+import org.apache.commons.compress.archivers.ArchiveException;
 
 /**
  * IO utilities for Zip operations.
  */
 // Keep package-private; consider for Apache Commons IO.
-class ZipIoUtil {
+final class ZipIoUtil {
 
     /**
-     * Writes full buffer to channel.
+     * Writes all bytes in a buffer to a channel at specified position.
      *
-     * @param channel channel to write to
-     * @param buf     buffer to write
-     * @throws IOException when writing fails or fails to write fully
+     * @param channel  The target channel.
+     * @param buffer   The source bytes.
+     * @param position The file position at which the transfer is to begin; must be non-negative.
+     * @throws IOException If some I/O error occurs or fails to write all bytes.
      */
-    static void writeFully(final SeekableByteChannel channel, final ByteBuffer buf) throws IOException {
-        while (buf.hasRemaining()) {
-            final int remaining = buf.remaining();
-            final int written = channel.write(buf);
-            if (written <= 0) {
-                throw new IOException("Failed to fully write: channel=" + channel + " length=" + remaining + " written=" + written);
+    static void writeAll(final FileChannel channel, final ByteBuffer buffer, final long position) throws IOException {
+        for (long currentPos = position; buffer.hasRemaining();) {
+            final int remaining = buffer.remaining();
+            final int written = channel.write(buffer, currentPos);
+            if (written == 0) {
+                // A non-blocking channel
+                Thread.yield();
+                continue;
             }
+            if (written < 0) {
+                throw new ArchiveException("Failed to write all bytes in the buffer for channel = %s, length = %,d, written = %,d", channel, remaining,
+                        written);
+            }
+            currentPos += written;
         }
     }
 
     /**
-     * Writes full buffer to channel at specified position.
+     * Writes all bytes in a buffer to a channel.
      *
-     * @param channel  channel to write to
-     * @param buf      buffer to write
-     * @param position position to write at
-     * @throws IOException when writing fails or fails to write fully
+     * @param channel The target channel.
+     * @param buffer  The source bytes.
+     * @throws IOException If some I/O error occurs or fails to write all bytes.
      */
-    static void writeFullyAt(final FileChannel channel, final ByteBuffer buf, final long position) throws IOException {
-        for (long currentPosition = position; buf.hasRemaining();) {
-            final int remaining = buf.remaining();
-            final int written = channel.write(buf, currentPosition);
-            if (written <= 0) {
-                throw new IOException("Failed to fully write: channel=" + channel + " length=" + remaining + " written=" + written);
+    static void writeAll(final WritableByteChannel channel, final ByteBuffer buffer) throws IOException {
+        while (buffer.hasRemaining()) {
+            final int remaining = buffer.remaining();
+            final int written = channel.write(buffer);
+            if (written == 0) {
+                // A non-blocking channel
+                Thread.yield();
+                continue;
             }
-            currentPosition += written;
+            if (written < 0) {
+                throw new ArchiveException("Failed to write all bytes in the buffer for channel = %s, length = %,d, written = %,d", channel, remaining,
+                        written);
+            }
         }
     }
 

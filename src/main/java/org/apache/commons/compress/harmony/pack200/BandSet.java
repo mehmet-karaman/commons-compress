@@ -29,6 +29,8 @@ import java.util.stream.IntStream;
 
 /**
  * Abstract superclass for a set of bands
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public abstract class BandSet {
 
@@ -54,6 +56,13 @@ public abstract class BandSet {
         // best so far
         private Codec betterCodec;
 
+        /**
+         * Constructs a new instance.
+         */
+        public BandAnalysisResults() {
+            // empty
+        }
+
     }
 
     /**
@@ -77,7 +86,7 @@ public abstract class BandSet {
         private Map<Integer, Integer> distinctValues;
 
         /**
-         * Constructs a new instance of BandData. The band is then analysed.
+         * Constructs a new instance of BandData. The band is then analyzed.
          *
          * @param band the band of integers
          */
@@ -186,6 +195,9 @@ public abstract class BandSet {
     // Note: these values have been tuned - please test carefully if changing them
     private static final int[] effortThresholds = { 0, 0, 1000, 500, 100, 100, 100, 100, 100, 0 };
 
+    /**
+     * The segment header for this band set.
+     */
     protected final SegmentHeader segmentHeader;
     final int effort;
 
@@ -346,7 +358,7 @@ public abstract class BandSet {
      * @param ints         the band
      * @param defaultCodec the default Codec
      * @return the encoded band
-     * @throws Pack200Exception TODO
+     * @throws Pack200Exception If a Pack200 semantic error occurs.
      */
     public byte[] encodeBandInt(final String name, final int[] ints, final BHSDCodec defaultCodec) throws Pack200Exception {
         byte[] encodedBand = null;
@@ -426,7 +438,7 @@ public abstract class BandSet {
      * @param hiCodec     Codec for the high 32-bits band
      * @param haveHiFlags ignores the high band if true as all values would be zero
      * @return the encoded band
-     * @throws Pack200Exception TODO
+     * @throws Pack200Exception If a Pack200 semantic error occurs.
      */
     protected byte[] encodeFlags(final String name, final long[] flags, final BHSDCodec loCodec, final BHSDCodec hiCodec, final boolean haveHiFlags)
             throws Pack200Exception {
@@ -477,30 +489,41 @@ public abstract class BandSet {
 //        }
 //    }
 
+    /**
+     * Encodes flags using the given codecs.
+     *
+     * @param name the name of the band.
+     * @param flags the flags to encode.
+     * @param loCodec the low codec.
+     * @param hiCodec the high codec.
+     * @param haveHiFlags whether high flags are present.
+     * @return the encoded flags.
+     * @throws Pack200Exception if an error occurs.
+     */
     protected byte[] encodeFlags(final String name, final long[][] flags, final BHSDCodec loCodec, final BHSDCodec hiCodec, final boolean haveHiFlags)
             throws Pack200Exception {
         return encodeFlags(name, flatten(flags), loCodec, hiCodec, haveHiFlags);
     }
 
     /**
-     * Encode a single value with the given Codec
+     * Encodes a single value with the given Codec.
      *
-     * @param value the value to encode
-     * @param codec Codec to use
-     * @return the encoded value
-     * @throws Pack200Exception TODO
+     * @param value the value to encode.
+     * @param codec Codec to use.
+     * @return the encoded value.
+     * @throws Pack200Exception If a Pack200 semantic error occurs.
      */
     public byte[] encodeScalar(final int value, final BHSDCodec codec) throws Pack200Exception {
         return codec.encode(value);
     }
 
     /**
-     * Encode a band without considering other Codecs
+     * Encode a band without considering other Codecs.
      *
-     * @param band  the band
-     * @param codec the Codec to use
-     * @return the encoded band
-     * @throws Pack200Exception TODO
+     * @param band  the band.
+     * @param codec the Codec to use.
+     * @return the encoded band.
+     * @throws Pack200Exception If a Pack200 semantic error occurs.
      */
     public byte[] encodeScalar(final int[] band, final BHSDCodec codec) throws Pack200Exception {
         return codec.encode(band);
@@ -699,11 +722,11 @@ public abstract class BandSet {
     }
 
     /**
-     * Write the packed set of bands to the given output stream
+     * Writes the packed set of bands to the given output stream.
      *
-     * @param out TODO
+     * @param out the output stream to write to.
      * @throws IOException      If an I/O error occurs.
-     * @throws Pack200Exception TODO
+     * @throws Pack200Exception If a Pack200 semantic error occurs.
      */
     public abstract void pack(OutputStream out) throws IOException, Pack200Exception;
 

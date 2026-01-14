@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * Exceptions class file attribute
+ * Exceptions class file attribute.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class ExceptionsAttribute extends Attribute {
 
@@ -41,6 +43,11 @@ public class ExceptionsAttribute extends Attribute {
         return result;
     }
 
+    /**
+     * Sets the attribute name.
+     *
+     * @param cpUTF8Value the attribute name.
+     */
     public static void setAttributeName(final CPUTF8 cpUTF8Value) {
         attributeName = cpUTF8Value;
     }
@@ -49,6 +56,11 @@ public class ExceptionsAttribute extends Attribute {
 
     private final CPClass[] exceptions;
 
+    /**
+     * Constructs a new ExceptionsAttribute.
+     *
+     * @param exceptions the exception classes.
+     */
     public ExceptionsAttribute(final CPClass[] exceptions) {
         super(attributeName);
         this.exceptions = exceptions;

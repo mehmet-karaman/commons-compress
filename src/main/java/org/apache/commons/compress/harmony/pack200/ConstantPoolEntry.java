@@ -16,21 +16,39 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.commons.compress.harmony.pack200;
 
 /**
  * Abstract superclass for constant pool entries.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public abstract class ConstantPoolEntry {
 
     private int index = -1;
 
+    /**
+     * Constructs a new ConstantPoolEntry.
+     */
+    public ConstantPoolEntry() {
+    }
+
+    /**
+     * Gets the index.
+     *
+     * @return the index.
+     */
     public int getIndex() {
         return index;
     }
 
+    /**
+     * Sets the index.
+     *
+     * @param index the index.
+     */
     public void setIndex(final int index) {
         this.index = index;
     }
-
 }

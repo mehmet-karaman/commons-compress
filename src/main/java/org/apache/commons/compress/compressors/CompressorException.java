@@ -18,12 +18,12 @@
  */
 package org.apache.commons.compress.compressors;
 
-import java.io.IOException;
+import org.apache.commons.compress.CompressException;
 
 /**
  * Signals that an Compressor exception of some sort has occurred.
  */
-public class CompressorException extends IOException {
+public class CompressorException extends CompressException {
 
     /** Serial. */
     private static final long serialVersionUID = -2932901310255908814L;
@@ -38,9 +38,25 @@ public class CompressorException extends IOException {
     }
 
     /**
+     * Constructs a new exception with the specified detail message format and arguments. The cause is not initialized.
+     * <p>
+     * The arguments are used with {@link String#format(String, Object...)}.
+     * </p>
+     *
+     * @param message The message format (which is saved for later retrieval by the {@link #getMessage()} method).
+     * @param args    the format arguments to use.
+     * @since 1.29.0
+     * @see String#format(String, Object...)
+     */
+    public CompressorException(final String message, final Object... args) {
+        super(message, args);
+    }
+
+
+    /**
      * Constructs a new exception with the specified detail message and cause.
      *
-     * @param message The message (which is saved for later retrieval by the {@link #getMessage()} method)
+     * @param message The message (which is saved for later retrieval by the {@link #getMessage()} method).
      * @param cause   The cause (which is saved for later retrieval by the {@link #getCause()} method). A null indicates that the cause is nonexistent or
      *                unknown.
      */

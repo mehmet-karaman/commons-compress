@@ -32,10 +32,10 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests {@link RandomAccessOutputStream}.
  */
-public class RandomAccessOutputStreamTest extends AbstractTempDirTest {
+class RandomAccessOutputStreamTest extends AbstractTempDirTest {
 
     @Test
-    public void testWrite() throws IOException {
+    void testWrite() throws IOException {
         final RandomAccessOutputStream delegate = mock(RandomAccessOutputStream.class);
         final RandomAccessOutputStream stream = new RandomAccessOutputStream() {
 
@@ -50,8 +50,8 @@ public class RandomAccessOutputStreamTest extends AbstractTempDirTest {
             }
 
             @Override
-            void writeFully(final byte[] b, final int off, final int len, final long position) throws IOException {
-                delegate.writeFully(b, off, len, position);
+            void writeAll(final byte[] b, final int off, final int len, final long position) throws IOException {
+                delegate.writeAll(b, off, len, position);
             }
         };
         stream.write('\n');

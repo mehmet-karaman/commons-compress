@@ -26,9 +26,9 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 
 /**
- * List of known compression methods
+ * Enumerates known compression methods.
  *
- * Many of these methods are currently not supported by commons compress
+ * Some of these methods are currently not supported by commons compress.
  *
  * @since 1.5
  */
@@ -196,9 +196,9 @@ public enum ZipMethod {
             .unmodifiableMap(Stream.of(values()).collect(Collectors.toMap(ZipMethod::getCode, Function.identity())));
 
     /**
-     * returns the {@link ZipMethod} for the given code or null if the method is not known.
+     * Gets the {@link ZipMethod} for the given code or null if the method is not known.
      *
-     * @param code the code
+     * @param code the code.
      * @return the {@link ZipMethod} for the given code or null if the method is not known.
      */
     public static ZipMethod getMethodByCode(final int code) {
@@ -222,17 +222,17 @@ public enum ZipMethod {
     }
 
     /**
-     * private constructor for enum style class.
+     * Constructs a new instance.
      */
     ZipMethod(final int code) {
         this.code = code;
     }
 
     /**
-     * the code of the compression method.
+     * Gets the code of the compression method.
      *
      * @see ZipArchiveEntry#getMethod()
-     * @return an integer code for the method
+     * @return an integer code for the method.
      */
     public int getCode() {
         return code;

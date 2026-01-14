@@ -31,15 +31,15 @@ import java.util.Arrays;
 
 import org.junit.jupiter.api.Test;
 
-public class NioZipEncodingTest {
+class NioZipEncodingTest {
 
     private static final String UMLAUTS = "\u00e4\u00f6\u00fc";
 
     private static final String RAINBOW_EMOJI = "\ud83c\udf08";
 
     @Test
-    public void testPartialSurrogatePair() {
-        final NioZipEncoding e = new NioZipEncoding(US_ASCII, false);
+    void testPartialSurrogatePair() {
+        final NioZipEncoding e = new NioZipEncoding(US_ASCII);
         final ByteBuffer bb = e.encode("\ud83c");
         final int off = bb.arrayOffset();
         final byte[] result = Arrays.copyOfRange(bb.array(), off, off + bb.limit() - bb.position());
@@ -47,8 +47,8 @@ public class NioZipEncodingTest {
     }
 
     @Test
-    public void testRainbowEmojiToSurrogatePairUTF16() {
-        final NioZipEncoding e = new NioZipEncoding(UTF_16BE, false);
+    void testRainbowEmojiToSurrogatePairUTF16() {
+        final NioZipEncoding e = new NioZipEncoding(UTF_16BE);
         final ByteBuffer bb = e.encode(RAINBOW_EMOJI);
         final int off = bb.arrayOffset();
         final byte[] result = Arrays.copyOfRange(bb.array(), off, off + bb.limit() - bb.position());
@@ -56,8 +56,8 @@ public class NioZipEncodingTest {
     }
 
     @Test
-    public void testUmlautToISO88591() {
-        final NioZipEncoding e = new NioZipEncoding(ISO_8859_1, true);
+    void testUmlautToISO88591() {
+        final NioZipEncoding e = new NioZipEncoding(ISO_8859_1);
         final ByteBuffer bb = e.encode("\u00e4\u00f6\u00fc");
         final int off = bb.arrayOffset();
         final byte[] result = Arrays.copyOfRange(bb.array(), off, off + bb.limit() - bb.position());
@@ -65,8 +65,8 @@ public class NioZipEncodingTest {
     }
 
     @Test
-    public void testUmlautToUTF16BE() {
-        final NioZipEncoding e = new NioZipEncoding(UTF_16BE, false);
+    void testUmlautToUTF16BE() {
+        final NioZipEncoding e = new NioZipEncoding(UTF_16BE);
         final ByteBuffer bb = e.encode(UMLAUTS);
         final int off = bb.arrayOffset();
         final byte[] result = Arrays.copyOfRange(bb.array(), off, off + bb.limit() - bb.position());
@@ -74,8 +74,8 @@ public class NioZipEncodingTest {
     }
 
     @Test
-    public void testUmlautToUTF8() {
-        final NioZipEncoding e = new NioZipEncoding(UTF_8, true);
+    void testUmlautToUTF8() {
+        final NioZipEncoding e = new NioZipEncoding(UTF_8);
         final ByteBuffer bb = e.encode("\u00e4\u00f6\u00fc");
         final int off = bb.arrayOffset();
         final byte[] result = Arrays.copyOfRange(bb.array(), off, off + bb.limit() - bb.position());
@@ -83,8 +83,8 @@ public class NioZipEncodingTest {
     }
 
     @Test
-    public void testUnmappableRainbowEmoji() {
-        final NioZipEncoding e = new NioZipEncoding(US_ASCII, false);
+    void testUnmappableRainbowEmoji() {
+        final NioZipEncoding e = new NioZipEncoding(US_ASCII);
         final ByteBuffer bb = e.encode(RAINBOW_EMOJI);
         final int off = bb.arrayOffset();
         final byte[] result = Arrays.copyOfRange(bb.array(), off, off + bb.limit() - bb.position());
@@ -92,8 +92,8 @@ public class NioZipEncodingTest {
     }
 
     @Test
-    public void testUnmappableUmlauts() {
-        final NioZipEncoding e = new NioZipEncoding(US_ASCII, false);
+    void testUnmappableUmlauts() {
+        final NioZipEncoding e = new NioZipEncoding(US_ASCII);
         final ByteBuffer bb = e.encode("\u00e4\u00f6\u00fc");
         final int off = bb.arrayOffset();
         final byte[] result = Arrays.copyOfRange(bb.array(), off, off + bb.limit() - bb.position());

@@ -24,11 +24,18 @@ import java.util.Objects;
 
 /**
  * Source file class file attribute
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class SourceFileAttribute extends Attribute {
 
     private static CPUTF8 attributeName;
 
+    /**
+     * Sets the attribute name.
+     *
+     * @param cpUTF8Value the attribute name.
+     */
     public static void setAttributeName(final CPUTF8 cpUTF8Value) {
         attributeName = cpUTF8Value;
     }
@@ -37,6 +44,11 @@ public class SourceFileAttribute extends Attribute {
 
     private int nameIndex;
 
+    /**
+     * Constructs a new SourceFileAttribute.
+     *
+     * @param name the source file name.
+     */
     public SourceFileAttribute(final CPUTF8 name) {
         super(attributeName);
         this.name = name;

@@ -18,7 +18,9 @@
  */
 package org.apache.commons.compress.compressors.bzip2;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,16 +29,26 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 
 import org.apache.commons.compress.AbstractTest;
 import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.archivers.ArchiveInputStream;
 import org.apache.commons.compress.archivers.ArchiveStreamFactory;
+import org.apache.commons.compress.compressors.CompressorException;
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream.Data;
+import org.apache.commons.compress.utils.BitInputStream;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
-public class BZip2CompressorInputStreamTest extends AbstractTest {
+class BZip2CompressorInputStreamTest extends AbstractTest {
+
+    private static final int MIN_CODE_LEN = 1;
+    private static final int MAX_CODE_LEN = 20;
 
     private void fuzzingTest(final int[] bytes) throws IOException, ArchiveException {
         final int len = bytes.length;
@@ -50,8 +62,97 @@ public class BZip2CompressorInputStreamTest extends AbstractTest {
         }
     }
 
+    /**
+     * Builds a minimal bitstream for recvDecodingTables():
+     * <ul>
+     *     <li>Uses only one symbol 'A' (0x41).</li>
+     *     <li>Number of groups: 2 (minimum).</li>
+     *     <li>Number of selectors: 3.</li>
+     *     <li>Selectors: all three encode j=1 (unary "10").</li>
+     *     <li>Huffman code lengths for 2 groups over alphabet size 3 (RUNA, RUNB, EOB) are all equal to {@code codeLength}.</li>
+     * </ul>
+     * <p>
+     *     <strong>Note:</strong> The values are chosen to keep everything byte-aligned.
+     * </p>
+     * @param codeLength the code length to use for each symbol in each group; must be in [0, 31]
+     */
+    private BitInputStream prepareDecodingTables(final int codeLength) {
+        assertTrue(0 <= codeLength && codeLength <= 31, "codeLength must be between 0 and 31");
+
+        final ByteArrayOutputStream stream = new ByteArrayOutputStream();
+
+        // Upper nibbles in use: set only upper nibble 4
+        stream.write(0b0000_1000);
+        stream.write(0b0000_0000);
+
+        // Lower nibbles of upper nibble 4: set only lower nibble 1
+        stream.write(0b0100_0000);
+        stream.write(0b0000_0000);
+
+        // Groups/selectors (24 bits total, byte-aligned)
+        // nGroups = 2 (3 bits), nSelectors = 3 (15 bits), selectors: 10 10 10
+        stream.write(0b010_00000); // nGroups (3 bits) + high 5 bits of nSelectors
+        stream.write(0b00000000); // middle 8 bits of nSelectors
+        stream.write(0b11_10_10_10); // low 2 bits of nSelectors + selectors (3 x 2 bits)
+
+        // Huffman tables: two groups, three symbols each
+        // startLen (5 bits) followed by 3x '0' (done) => one byte: codeLength << 3
+        stream.write(codeLength << 3);
+        stream.write(codeLength << 3);
+
+        return new BitInputStream(new ByteArrayInputStream(stream.toByteArray()), ByteOrder.BIG_ENDIAN);
+    }
+
     @Test
-    public void testMultiByteReadConsistentlyReturnsMinusOneAtEof() throws IOException {
+    void testCreateHuffmanDecodingTablesWithLargeAlphaSize() {
+        final Data data = new Data(1);
+        // Use a codeLengths array with length equal to MAX_ALPHA_SIZE (258) to test array bounds.
+        final char[] codeLengths = new char[258];
+        for (int i = 0; i < codeLengths.length; i++) {
+            // Use all code lengths within valid range [1, 20]
+            codeLengths[i] = (char) ((i % MAX_CODE_LEN) + 1);
+        }
+        data.temp_charArray2d[0] = codeLengths;
+        assertDoesNotThrow(
+                () -> BZip2CompressorInputStream.createHuffmanDecodingTables(codeLengths.length, 1, data),
+                "createHuffmanDecodingTables should not throw for valid codeLengths array of MAX_ALPHA_SIZE");
+        assertEquals(data.minLens[0], 1, "Minimum code length should be 1");
+    }
+
+    @Test
+    void testFinishClose() throws Exception {
+        // Create a big random piece of data
+        final byte[] rawData = new byte[1048576];
+        for (int i = 0; i < rawData.length; ++i) {
+            rawData[i] = (byte) Math.floor(Math.random() * 256);
+        }
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (BZip2CompressorOutputStream bzipOut = new BZip2CompressorOutputStream(baos)) {
+            bzipOut.write(rawData);
+            bzipOut.flush();
+            bzipOut.finish();
+            bzipOut.close();
+            assertTrue(bzipOut.isClosed());
+            baos.flush();
+        }
+        baos.reset();
+        try (BZip2CompressorOutputStream bzipOut = new BZip2CompressorOutputStream(baos)) {
+            bzipOut.write(rawData);
+            bzipOut.finish();
+            bzipOut.close();
+            assertTrue(bzipOut.isClosed());
+            baos.flush();
+        }
+    }
+
+    @Test
+    void testHbCreateDecodeTables() throws IOException {
+        assertThrows(CompressorException.class, () -> new BZip2CompressorInputStream(
+                Files.newInputStream(Paths.get("src/test/resources/org/apache/commons/compress/bzip2/hbCreateDecodeTables.bin"))));
+    }
+
+    @Test
+    void testMultiByteReadConsistentlyReturnsMinusOneAtEof() throws IOException {
         final File input = getFile("bla.txt.bz2");
         final byte[] buf = new byte[2];
         try (InputStream is = Files.newInputStream(input.toPath());
@@ -66,7 +167,7 @@ public class BZip2CompressorInputStreamTest extends AbstractTest {
      * @see "https://issues.apache.org/jira/browse/COMPRESS-309"
      */
     @Test
-    public void testReadOfLength0ShouldReturn0() throws Exception {
+    void testReadOfLength0ShouldReturn0() throws Exception {
         // Create a big random piece of data
         final byte[] rawData = new byte[1048576];
         for (int i = 0; i < rawData.length; ++i) {
@@ -93,19 +194,60 @@ public class BZip2CompressorInputStreamTest extends AbstractTest {
         }
     }
 
+    @ParameterizedTest(name = "code length {0} -> must be rejected")
+    @ValueSource(ints = {MIN_CODE_LEN - 1, MAX_CODE_LEN + 1})
+    void testRecvDecodingTablesWithOutOfRangeCodeLength(final int codeLength) throws IOException {
+        try (BitInputStream tables = prepareDecodingTables(codeLength)) {
+            final Data data = new Data(1);
+
+            final CompressorException ex = assertThrows(
+                    CompressorException.class,
+                    () -> BZip2CompressorInputStream.recvDecodingTables(tables, data),
+                    "Expected CompressorException for invalid code length " + codeLength);
+
+            final String msg = ex.getMessage();
+            assertNotNull(msg, "Exception message must not be null");
+            assertTrue(msg.toLowerCase().contains("code length"), "Message should mention 'code length'");
+            assertTrue(
+                    msg.contains("[" + MIN_CODE_LEN + ", " + MAX_CODE_LEN + "]"),
+                    "Message should mention valid range [" + MIN_CODE_LEN + ", " + MAX_CODE_LEN + "]");
+            assertTrue(
+                    msg.contains(Integer.toString(codeLength)),
+                    "Message should include the offending value " + codeLength);
+        }
+    }
+
+    @ParameterizedTest(name = "code length {0} -> accepted and stored")
+    @ValueSource(ints = {MIN_CODE_LEN, MAX_CODE_LEN})
+    void testRecvDecodingTablesWithValidCodeLength(final int codeLength) throws IOException {
+        try (BitInputStream tables = prepareDecodingTables(codeLength)) {
+            final Data data = new Data(1);
+
+            assertDoesNotThrow(
+                    () -> BZip2CompressorInputStream.recvDecodingTables(tables, data),
+                    "Should accept code length " + codeLength + " within [" + MIN_CODE_LEN + ", " + MAX_CODE_LEN + "]");
+
+            // We encoded 2 Huffman groups; both minLens should equal the encoded codeLength
+            assertEquals(codeLength, data.minLens[0], "Group 0 min code length mismatch");
+            assertEquals(codeLength, data.minLens[1], "Group 1 min code length mismatch");
+        }
+    }
+
     @Test
-    public void testShouldThrowAnIOExceptionWhenAppliedToAZipFile() throws Exception {
+    void testShouldThrowAnIOExceptionWhenAppliedToAZipFile() throws Exception {
         try (InputStream in = newInputStream("bla.zip")) {
-            assertThrows(IOException.class, () -> new BZip2CompressorInputStream(in));
+            assertThrows(CompressorException.class, () -> new BZip2CompressorInputStream(in));
         }
     }
 
     /**
+     * Tests <a href="https://issues.apache.org/jira/browse/COMPRESS-516">COMPRESS-516</a>.
+     *
      * @see <a href="https://issues.apache.org/jira/browse/COMPRESS-516">COMPRESS-516</a>
      */
     @Test
-    public void testShouldThrowIOExceptionInsteadOfRuntimeExceptionCOMPRESS516() {
-        assertThrows(IOException.class,
+    void testShouldThrowIOExceptionInsteadOfRuntimeExceptionCOMPRESS516() {
+        assertThrows(CompressorException.class,
                 () -> fuzzingTest(new int[] { 0x50, 0x4b, 0x03, 0x04, 0x2e, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x84, 0xb6, 0xba, 0x46, 0x72, 0xb6, 0xfe, 0x77, 0x63,
                         0x00, 0x00, 0x00, 0x6b, 0x00, 0x00, 0x00, 0x03, 0x00, 0x1c, 0x00, 0x62, 0x62, 0x62, 0x55, 0x54, 0x09, 0x00, 0x03, 0xe7, 0xce, 0x64,
                         0x55, 0xf3, 0xce, 0x64, 0x55, 0x75, 0x78, 0x0b, 0x00, 0x01, 0x04, 0x5c, 0xf9, 0x01, 0x00, 0x04, 0x88, 0x13, 0x00, 0x00, 0x42, 0x5a,
@@ -119,8 +261,8 @@ public class BZip2CompressorInputStreamTest extends AbstractTest {
      * @see <a href="https://issues.apache.org/jira/browse/COMPRESS-519">COMPRESS-519</a>
      */
     @Test
-    public void testShouldThrowIOExceptionInsteadOfRuntimeExceptionCOMPRESS519() {
-        assertThrows(IOException.class,
+    void testShouldThrowIOExceptionInsteadOfRuntimeExceptionCOMPRESS519() {
+        assertThrows(CompressorException.class,
                 () -> fuzzingTest(new int[] { 0x50, 0x4b, 0x03, 0x04, 0x2e, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x84, 0xb6, 0xba, 0x46, 0x72, 0xb6, 0xfe, 0x77, 0x63,
                         0x00, 0x00, 0x00, 0x6b, 0x00, 0x00, 0x00, 0x03, 0x00, 0x1c, 0x00, 0x62, 0x62, 0x62, 0x55, 0x54, 0x09, 0x00, 0x03, 0xe7, 0xce, 0x64,
                         0x55, 0xf3, 0xce, 0x64, 0x55, 0x75, 0x78, 0x0b, 0x00, 0x01, 0x04, 0x5c, 0xf9, 0x01, 0x00, 0x04, 0x88, 0x13, 0x00, 0x00, 0x42, 0x5a,
@@ -130,7 +272,7 @@ public class BZip2CompressorInputStreamTest extends AbstractTest {
     }
 
     @Test
-    public void testSingleByteReadConsistentlyReturnsMinusOneAtEof() throws IOException {
+    void testSingleByteReadConsistentlyReturnsMinusOneAtEof() throws IOException {
         final File input = getFile("bla.txt.bz2");
         try (InputStream is = Files.newInputStream(input.toPath());
                 BZip2CompressorInputStream in = new BZip2CompressorInputStream(is)) {
@@ -139,4 +281,5 @@ public class BZip2CompressorInputStreamTest extends AbstractTest {
             assertEquals(-1, in.read());
         }
     }
+
 }

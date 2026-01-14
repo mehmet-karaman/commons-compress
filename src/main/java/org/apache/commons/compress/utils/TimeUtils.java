@@ -38,7 +38,10 @@ import org.apache.commons.io.file.attribute.FileTimes;
  * </ul>
  *
  * @since 1.23
+ * @see FileTimes
+ * @deprecated Use {@link FileTimes}.
  */
+@Deprecated
 public final class TimeUtils {
 
     /** The amount of 100-nanosecond intervals in one millisecond. */
@@ -55,10 +58,6 @@ public final class TimeUtils {
 
     /**
      * Tests whether a FileTime can be safely represented in the standard Unix time.
-     *
-     * <p>
-     * TODO ? If the FileTime is null, this method always returns true.
-     * </p>
      *
      * @param time the FileTime to evaluate, can be null.
      * @return true if the time exceeds the minimum or maximum Unix time, false otherwise.
@@ -170,11 +169,17 @@ public final class TimeUtils {
     }
 
     /**
-     * Converts {@link FileTime} to standard Unix time.
+     * Converts a {@link FileTime} to standard Unix time in seconds.
+     * <p>
+     * The returned seconds value may lie out of bounds of Unix time. Check with {@link FileTimes#isUnixTime(long)}.
+     * </p>
      *
      * @param fileTime the original FileTime.
-     * @return the Unix timestamp.
+     * @return the Unix timestamp or 0 if the input is null.
+     * @see FileTimes#isUnixTime(long)
+     * @deprecated Use {@link FileTimes#toUnixTime(FileTime)}.
      */
+    @Deprecated
     public static long toUnixTime(final FileTime fileTime) {
         return FileTimes.toUnixTime(fileTime);
     }
@@ -184,7 +189,9 @@ public final class TimeUtils {
      *
      * @param fileTime the FileTime to be truncated.
      * @return the truncated FileTime.
+     * @deprecated No replacement, only used in tests.
      */
+    @Deprecated
     public static FileTime truncateToHundredNanos(final FileTime fileTime) {
         final Instant instant = fileTime.toInstant();
         return FileTime.from(Instant.ofEpochSecond(instant.getEpochSecond(), instant.getNano() / 100 * 100));
@@ -202,7 +209,7 @@ public final class TimeUtils {
         return FileTimes.fromUnixTime(time);
     }
 
-    /** Private constructor to prevent instantiation of this utility class. */
+    /** Constructs a new instance. */
     private TimeUtils() {
     }
 }

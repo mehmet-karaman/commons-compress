@@ -34,7 +34,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  */
-public class CodecEncodingTest {
+class CodecEncodingTest {
 
     static Stream<Arguments> arbitraryCodec() {
         return Stream.of(Arguments.of("(1,256)", new byte[] { 0x00, (byte) 0xFF }), Arguments.of("(5,128,2,1)", new byte[] { 0x25, (byte) 0x7F }),
@@ -86,7 +86,7 @@ public class CodecEncodingTest {
 
     @ParameterizedTest
     @MethodSource("arbitraryCodec")
-    public void testArbitraryCodec(final String expected, final byte[] bytes) throws IOException, Pack200Exception {
+    void testArbitraryCodec(final String expected, final byte[] bytes) throws IOException, Pack200Exception {
         assertEquals(expected, CodecEncoding.getCodec(116, new ByteArrayInputStream(bytes), null).toString());
     }
 
@@ -98,20 +98,20 @@ public class CodecEncodingTest {
 
     @ParameterizedTest
     @MethodSource("canonicalGetSpecifier")
-    public void testCanonicalGetSpecifier(final int i) throws Pack200Exception, IOException {
+    void testCanonicalGetSpecifier(final int i) throws Pack200Exception, IOException {
         assertEquals(i, CodecEncoding.getSpecifier(CodecEncoding.getCodec(i, null, null), null)[0]);
     }
 
     @Test
-    public void testDefaultCodec() throws Pack200Exception, IOException {
+    void testDefaultCodec() throws Pack200Exception, IOException {
         final Codec defaultCodec = new BHSDCodec(2, 16, 0, 0);
         assertEquals(defaultCodec, CodecEncoding.getCodec(0, null, defaultCodec));
     }
 
     @Test
-    public void testGetSpeciferForPopulationCodec() throws IOException, Pack200Exception {
-        final PopulationCodec pCodec = new PopulationCodec(Codec.BYTE1, Codec.CHAR3, Codec.UNSIGNED5);
-        final int[] specifiers = CodecEncoding.getSpecifier(pCodec, null);
+    void testGetSpeciferForPopulationCodec() throws IOException, Pack200Exception {
+        final PopulationCodec populationCodec = new PopulationCodec(Codec.BYTE1, Codec.CHAR3, Codec.UNSIGNED5);
+        final int[] specifiers = CodecEncoding.getSpecifier(populationCodec, null);
         assertTrue(specifiers[0] > 140);
         assertTrue(specifiers[0] < 189);
         final byte[] bytes = new byte[specifiers.length - 1];
@@ -119,14 +119,14 @@ public class CodecEncodingTest {
             bytes[i] = (byte) specifiers[i + 1];
         }
         final InputStream in = new ByteArrayInputStream(bytes);
-        final PopulationCodec pCodec2 = (PopulationCodec) CodecEncoding.getCodec(specifiers[0], in, null);
-        assertEquals(pCodec.getFavouredCodec(), pCodec2.getFavouredCodec());
-        assertEquals(pCodec.getTokenCodec(), pCodec2.getTokenCodec());
-        assertEquals(pCodec.getUnfavouredCodec(), pCodec2.getUnfavouredCodec());
+        final PopulationCodec populationCodec2 = (PopulationCodec) CodecEncoding.getCodec(specifiers[0], in, null);
+        assertEquals(populationCodec.getFavouredCodec(), populationCodec2.getFavouredCodec());
+        assertEquals(populationCodec.getTokenCodec(), populationCodec2.getTokenCodec());
+        assertEquals(populationCodec.getUnfavouredCodec(), populationCodec2.getUnfavouredCodec());
     }
 
     @Test
-    public void testGetSpeciferForRunCodec() throws Pack200Exception, IOException {
+    void testGetSpeciferForRunCodec() throws Pack200Exception, IOException {
         RunCodec runCodec = new RunCodec(25, Codec.DELTA5, Codec.BYTE1);
         int[] specifiers = CodecEncoding.getSpecifier(runCodec, null);
         assertTrue(specifiers[0] > 116);

@@ -35,9 +35,16 @@ public class SevenZFileOptions {
      */
     public static class Builder {
 
-        private int maxMemoryLimitKb = SevenZFile.Builder.MEMORY_LIMIT_IN_KB;
+        private int maxMemoryLimitKb = SevenZFile.Builder.MEMORY_LIMIT_KIB;
         private boolean useDefaultNameForUnnamedEntries = SevenZFile.Builder.USE_DEFAULTNAME_FOR_UNNAMED_ENTRIES;
         private boolean tryToRecoverBrokenArchives = SevenZFile.Builder.TRY_TO_RECOVER_BROKEN_ARCHIVES;
+
+        /**
+         * Constructs a new instance.
+         */
+        public Builder() {
+            // Default constructor
+        }
 
         /**
          * Builds the {@link SevenZFileOptions}.
@@ -55,7 +62,7 @@ public class SevenZFileOptions {
          * </p>
          *
          * @param maxMemoryLimitKiB limit of the maximum amount of memory to use in kibibytes.
-         * @return the reconfigured builder
+         * @return the reconfigured builder.
          */
         public Builder withMaxMemoryLimitInKb(final int maxMemoryLimitKiB) {
             this.maxMemoryLimitKb = maxMemoryLimitKiB;
@@ -70,8 +77,8 @@ public class SevenZFileOptions {
          * option without setting {@link #withMaxMemoryLimitInKb} at the same time.
          * </p>
          *
-         * @param tryToRecoverBrokenArchives if true SevenZFile will try to recover archives that are broken in the specific way
-         * @return the reconfigured builder
+         * @param tryToRecoverBrokenArchives if true SevenZFile will try to recover archives that are broken in the specific way.
+         * @return the reconfigured builder.
          * @since 1.21
          */
         public Builder withTryToRecoverBrokenArchives(final boolean tryToRecoverBrokenArchives) {
@@ -82,8 +89,8 @@ public class SevenZFileOptions {
         /**
          * Sets whether entries without a name should get their names set to the archive's default file name.
          *
-         * @param useDefaultNameForUnnamedEntries if true the name of unnamed entries will be set to the archive's default name
-         * @return the reconfigured builder
+         * @param useDefaultNameForUnnamedEntries if true the name of unnamed entries will be set to the archive's default name.
+         * @return the reconfigured builder.
          */
         public Builder withUseDefaultNameForUnnamedEntries(final boolean useDefaultNameForUnnamedEntries) {
             this.useDefaultNameForUnnamedEntries = useDefaultNameForUnnamedEntries;
@@ -98,7 +105,7 @@ public class SevenZFileOptions {
      * <li>don't modify the name of unnamed entries</li>
      * </ul>
      */
-    public static final SevenZFileOptions DEFAULT = new SevenZFileOptions(SevenZFile.Builder.MEMORY_LIMIT_IN_KB,
+    public static final SevenZFileOptions DEFAULT = new SevenZFileOptions(SevenZFile.Builder.MEMORY_LIMIT_KIB,
             SevenZFile.Builder.USE_DEFAULTNAME_FOR_UNNAMED_ENTRIES, SevenZFile.Builder.TRY_TO_RECOVER_BROKEN_ARCHIVES);
 
     /**
@@ -114,8 +121,8 @@ public class SevenZFileOptions {
     private final boolean useDefaultNameForUnnamedEntries;
     private final boolean tryToRecoverBrokenArchives;
 
-    private SevenZFileOptions(final int maxMemoryLimitKb, final boolean useDefaultNameForUnnamedEntries, final boolean tryToRecoverBrokenArchives) {
-        this.maxMemoryLimitKiB = maxMemoryLimitKb;
+    private SevenZFileOptions(final int maxMemoryLimitKiB, final boolean useDefaultNameForUnnamedEntries, final boolean tryToRecoverBrokenArchives) {
+        this.maxMemoryLimitKiB = maxMemoryLimitKiB;
         this.useDefaultNameForUnnamedEntries = useDefaultNameForUnnamedEntries;
         this.tryToRecoverBrokenArchives = tryToRecoverBrokenArchives;
     }
@@ -133,7 +140,7 @@ public class SevenZFileOptions {
     }
 
     /**
-     * Whether {@link SevenZFile} shall try to recover from a certain type of broken archive.
+     * Gets whether {@link SevenZFile} shall try to recover from a certain type of broken archive.
      *
      * @return whether SevenZFile shall try to recover from a certain type of broken archive.
      * @since 1.21
@@ -145,7 +152,7 @@ public class SevenZFileOptions {
     /**
      * Gets whether entries without a name should get their names set to the archive's default file name.
      *
-     * @return whether entries without a name should get their names set to the archive's default file name
+     * @return whether entries without a name should get their names set to the archive's default file name.
      */
     public boolean getUseDefaultNameForUnnamedEntries() {
         return useDefaultNameForUnnamedEntries;

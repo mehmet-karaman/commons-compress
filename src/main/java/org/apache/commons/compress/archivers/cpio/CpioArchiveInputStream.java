@@ -22,15 +22,17 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.apache.commons.compress.archivers.AbstractArchiveBuilder;
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.archivers.ArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipEncoding;
 import org.apache.commons.compress.archivers.zip.ZipEncodingHelper;
 import org.apache.commons.compress.utils.ArchiveUtils;
-import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.compress.utils.ParsingUtils;
+import org.apache.commons.io.IOUtils;
 
 /**
- * CpioArchiveInputStream is a stream for reading cpio streams. All formats of cpio are supported (old ascii, old binary, new portable format and the new
+ * CpioArchiveInputStream is a stream for reading cpio streams. All formats of cpio are supported (old ASCII, old binary, new portable format and the new
  * portable format with CRC).
  * <p>
  * The stream can be read by extracting a cpio entry (containing all information about an entry) and afterwards reading from the stream the file specified by
@@ -64,6 +66,59 @@ import org.apache.commons.compress.utils.ParsingUtils;
 public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry> implements CpioConstants {
 
     /**
+     * Builds a new {@link CpioArchiveInputStream}.
+     * <p>
+     *     For example:
+     * </p>
+     * <pre>{@code
+     * CpioArchiveInputStream in = CpioArchiveInputStream.builder()
+     *     .setBlockSize(1024)
+     *     .setPath(inputPath)
+     *     .setCharset(StandardCharsets.UTF_8)
+     *     .get();
+     * }</pre>
+     *
+     * @since 1.29.0
+     */
+    public static final class Builder extends AbstractArchiveBuilder<CpioArchiveInputStream, Builder> {
+
+        private int blockSize = BLOCK_SIZE;
+
+        private Builder() {
+            setCharset(CpioUtil.DEFAULT_CHARSET);
+        }
+
+        @Override
+        public CpioArchiveInputStream get() throws IOException {
+            return new CpioArchiveInputStream(this);
+        }
+
+        /**
+         * Sets the block size of the archive.
+         * <p>
+         * Default value is {@link CpioConstants#BLOCK_SIZE}.
+         * </p>
+         *
+         * @param blockSize The block size must be bigger than 0.
+         * @return {@code this} instance.
+         */
+        public Builder setBlockSize(final int blockSize) {
+            this.blockSize = blockSize;
+            return asThis();
+        }
+    }
+
+    /**
+     * Creates a new builder.
+     *
+     * @return A new builder.
+     * @since 1.29.0
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
      * Checks if the signature matches one of the following magic values:
      *
      * Strings:
@@ -74,9 +129,9 @@ public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry>
      *
      * 070707 - MAGIC_OLD_BINARY (held as a short) = 0x71C7 or 0xC771
      *
-     * @param signature data to match
-     * @param length    length of data
-     * @return whether the buffer seems to contain CPIO data
+     * @param signature data to match.
+     * @param length    length of data.
+     * @return whether the buffer seems to contain CPIO data.
      */
     public static boolean matches(final byte[] signature, final int length) {
         if (length < 6) {
@@ -143,54 +198,75 @@ public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry>
      */
     private final ZipEncoding zipEncoding;
 
+    private CpioArchiveInputStream(final Builder builder) throws IOException {
+        super(builder);
+        if (builder.blockSize <= 0) {
+            throw new IllegalArgumentException("blockSize must be bigger than 0");
+        }
+        this.blockSize = builder.blockSize;
+        this.zipEncoding = ZipEncodingHelper.getZipEncoding(builder.getCharset());
+    }
+
     /**
      * Constructs the cpio input stream with a blocksize of {@link CpioConstants#BLOCK_SIZE BLOCK_SIZE} and expecting ASCII file names.
      *
-     * @param in The cpio stream
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param in The cpio stream.
+     * @throws IOException if an I/O error has occurred.
      */
-    public CpioArchiveInputStream(final InputStream in) {
-        this(in, BLOCK_SIZE, CpioUtil.DEFAULT_CHARSET_NAME);
+    public CpioArchiveInputStream(final InputStream in) throws IOException {
+        this(builder().setInputStream(in));
     }
 
     /**
      * Constructs the cpio input stream with a blocksize of {@link CpioConstants#BLOCK_SIZE BLOCK_SIZE} expecting ASCII file names.
      *
-     * @param in        The cpio stream
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param in        The cpio stream.
      * @param blockSize The block size of the archive.
+     * @throws IOException if an I/O error has occurred.
      * @since 1.5
+     * @deprecated Since 1.29.0, use {@link #builder()}.
      */
-    public CpioArchiveInputStream(final InputStream in, final int blockSize) {
-        this(in, blockSize, CpioUtil.DEFAULT_CHARSET_NAME);
+    @Deprecated
+    public CpioArchiveInputStream(final InputStream in, final int blockSize) throws IOException {
+        this(builder().setInputStream(in).setBlockSize(blockSize));
     }
 
     /**
      * Constructs the cpio input stream with a blocksize of {@link CpioConstants#BLOCK_SIZE BLOCK_SIZE}.
      *
-     * @param in        The cpio stream
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param in        The cpio stream.
      * @param blockSize The block size of the archive.
      * @param encoding  The encoding of file names to expect - use null for the platform's default.
-     * @throws IllegalArgumentException if {@code blockSize} is not bigger than 0
+     * @throws IllegalArgumentException if {@code blockSize} is not bigger than 0.
+     * @throws IOException if an I/O error has occurred.
      * @since 1.6
+     * @deprecated Since 1.29.0, use {@link #builder()}.
      */
-    public CpioArchiveInputStream(final InputStream in, final int blockSize, final String encoding) {
-        super(in, encoding);
-        this.in = in;
-        if (blockSize <= 0) {
-            throw new IllegalArgumentException("blockSize must be bigger than 0");
-        }
-        this.blockSize = blockSize;
-        this.zipEncoding = ZipEncodingHelper.getZipEncoding(encoding);
+    @Deprecated
+    public CpioArchiveInputStream(final InputStream in, final int blockSize, final String encoding) throws IOException {
+        this(builder().setInputStream(in).setBlockSize(blockSize).setCharset(encoding));
     }
 
     /**
      * Constructs the cpio input stream with a blocksize of {@link CpioConstants#BLOCK_SIZE BLOCK_SIZE}.
      *
-     * @param in       The cpio stream
+     * <p>Since 1.29.0: throws {@link IOException}.</p>
+     *
+     * @param in       The cpio stream.
      * @param encoding The encoding of file names to expect - use null for the platform's default.
+     * @throws IOException if an I/O error has occurred.
      * @since 1.6
+     * @deprecated Since 1.29.0, use {@link #builder()}.
      */
-    public CpioArchiveInputStream(final InputStream in, final String encoding) {
-        this(in, BLOCK_SIZE, encoding);
+    @Deprecated
+    public CpioArchiveInputStream(final InputStream in, final String encoding) throws IOException {
+        this(builder().setInputStream(in).setCharset(encoding));
     }
 
     /**
@@ -200,101 +276,83 @@ public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry>
      * </p>
      *
      * @return 1 before EOF and 0 after EOF has reached for current entry.
-     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred
+     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred.
      */
     @Override
     public int available() throws IOException {
-        ensureOpen();
-        if (this.entryEOF) {
-            return 0;
-        }
-        return 1;
-    }
-
-    /**
-     * Closes the CPIO input stream.
-     *
-     * @throws IOException if an I/O error has occurred
-     */
-    @Override
-    public void close() throws IOException {
-        if (!this.closed) {
-            in.close();
-            this.closed = true;
-        }
-    }
-
-    /**
-     * Closes the current CPIO entry and positions the stream for reading the next entry.
-     *
-     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred
-     */
-    private void closeEntry() throws IOException {
-        // the skip implementation of this class will not skip more
-        // than Integer.MAX_VALUE bytes
-        while (skip((long) Integer.MAX_VALUE) == Integer.MAX_VALUE) { // NOPMD NOSONAR
-            // do nothing
-        }
+        checkOpen();
+        return entryEOF ? 0 : 1;
     }
 
     /**
      * Check to make sure that this stream has not been closed
      *
-     * @throws IOException if the stream is already closed
+     * @throws IOException if the stream is already closed.
      */
-    private void ensureOpen() throws IOException {
-        if (this.closed) {
-            throw new IOException("Stream closed");
+    private void checkOpen() throws IOException {
+        if (closed) {
+            throw new ArchiveException("Stream closed");
+        }
+    }
+
+    /**
+     * Closes the CPIO input stream.
+     *
+     * @throws IOException if an I/O error has occurred.
+     */
+    @Override
+    public void close() throws IOException {
+        if (!closed) {
+            in.close();
+            closed = true;
         }
     }
 
     /**
      * Reads the next CPIO file entry and positions stream at the beginning of the entry data.
      *
-     * @return the CpioArchiveEntry just read
-     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred
+     * @return the CpioArchiveEntry just read.
+     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred.
      * @deprecated Use {@link #getNextEntry()}.
      */
     @Deprecated
     public CpioArchiveEntry getNextCPIOEntry() throws IOException {
-        ensureOpen();
-        if (this.entry != null) {
-            closeEntry();
+        checkOpen();
+        if (entry != null) {
+            IOUtils.consume(this);
         }
         readFully(buffer2, 0, buffer2.length);
         if (CpioUtil.byteArray2long(buffer2, false) == MAGIC_OLD_BINARY) {
-            this.entry = readOldBinaryEntry(false);
+            entry = readOldBinaryEntry(false);
         } else if (CpioUtil.byteArray2long(buffer2, true) == MAGIC_OLD_BINARY) {
-            this.entry = readOldBinaryEntry(true);
+            entry = readOldBinaryEntry(true);
         } else {
             System.arraycopy(buffer2, 0, buffer6, 0, buffer2.length);
             readFully(buffer6, buffer2.length, buffer4.length);
             final String magicString = ArchiveUtils.toAsciiString(buffer6);
             switch (magicString) {
             case MAGIC_NEW:
-                this.entry = readNewEntry(false);
+                entry = readNewEntry(false);
                 break;
             case MAGIC_NEW_CRC:
-                this.entry = readNewEntry(true);
+                entry = readNewEntry(true);
                 break;
             case MAGIC_OLD_ASCII:
-                this.entry = readOldAsciiEntry();
+                entry = readOldAsciiEntry();
                 break;
             default:
-                throw new IOException("Unknown magic [" + magicString + "]. Occurred at byte: " + getBytesRead());
+                throw new ArchiveException("Unknown magic '%s' at byte: %,d", magicString, getBytesRead());
             }
         }
-
-        this.entryBytesRead = 0;
-        this.entryEOF = false;
-        this.crc = 0;
-
-        if (this.entry.getName().equals(CPIO_TRAILER)) {
-            this.entryEOF = true;
+        entryBytesRead = 0;
+        entryEOF = false;
+        crc = 0;
+        if (entry.getName().equals(CPIO_TRAILER)) {
+            entryEOF = true;
             skipRemainderOfLastBlock();
             return null;
         }
-        return this.entry;
+        return entry;
     }
 
     @Override
@@ -305,52 +363,49 @@ public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry>
     /**
      * Reads from the current CPIO entry into an array of bytes. Blocks until some input is available.
      *
-     * @param b   the buffer into which the data is read
-     * @param off the start offset of the data
-     * @param len the maximum number of bytes read
-     * @return the actual number of bytes read, or -1 if the end of the entry is reached
-     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred
+     * @param b   the buffer into which the data is read.
+     * @param off the start offset of the data.
+     * @param len the maximum number of bytes read.
+     * @return the actual number of bytes read, or -1 if the end of the entry is reached.
+     * @throws NullPointerException      if b is null.
+     * @throws IndexOutOfBoundsException if {@code off} or {@code len} are negative, or if {@code off + len} is greater than {@code b.length}.
+     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred.
      */
     @Override
     public int read(final byte[] b, final int off, final int len) throws IOException {
-        ensureOpen();
-        if (off < 0 || len < 0 || off > b.length - len) {
-            throw new IndexOutOfBoundsException();
-        }
+        IOUtils.checkFromIndexSize(b, off, len);
         if (len == 0) {
             return 0;
         }
-
-        if (this.entry == null || this.entryEOF) {
+        checkOpen();
+        if (entry == null || entryEOF) {
             return -1;
         }
-        if (this.entryBytesRead == this.entry.getSize()) {
+        if (entryBytesRead == entry.getSize()) {
             final int dataPadCount = entry.getDataPadCount();
             if (skip(dataPadCount) != dataPadCount) {
-                throw new IOException("Data pad count missmatch.");
+                throw new ArchiveException("Data pad count missmatch.");
             }
-            this.entryEOF = true;
-            if (this.entry.getFormat() == FORMAT_NEW_CRC && this.crc != this.entry.getChksum()) {
-                throw new IOException("CRC Error. Occurred at byte: " + getBytesRead());
+            entryEOF = true;
+            if (entry.getFormat() == FORMAT_NEW_CRC && crc != entry.getChksum()) {
+                throw new ArchiveException("CRC Error. Occurred at byte: " + getBytesRead());
             }
             return -1; // EOF for this entry
         }
-        final int tmplength = (int) Math.min(len, this.entry.getSize() - this.entryBytesRead);
+        final int tmplength = (int) Math.min(len, entry.getSize() - entryBytesRead);
         if (tmplength < 0) {
             return -1;
         }
-
         final int tmpread = readFully(b, off, tmplength);
-        if (this.entry.getFormat() == FORMAT_NEW_CRC) {
+        if (entry.getFormat() == FORMAT_NEW_CRC) {
             for (int pos = 0; pos < tmpread; pos++) {
-                this.crc += b[pos] & 0xFF;
-                this.crc &= 0xFFFFFFFFL;
+                crc += b[off + pos] & 0xFF;
             }
+            crc &= 0xFFFFFFFFL;
         }
         if (tmpread > 0) {
-            this.entryBytesRead += tmpread;
+            entryBytesRead += tmpread;
         }
-
         return tmpread;
     }
 
@@ -364,17 +419,18 @@ public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry>
         return CpioUtil.byteArray2long(tmp, swapHalfWord);
     }
 
-    private String readCString(final int length) throws IOException {
+    private String readEntryName(int lengthWithNull) throws IOException {
+        final int length = ArchiveUtils.checkEntryNameLength(lengthWithNull - 1, getMaxEntryNameLength(), "CPIO");
         // don't include trailing NUL in file name to decode
-        final byte[] tmpBuffer = readRange(length - 1);
-        if (this.in.read() == -1) {
+        final byte[] tmpBuffer = readRange(length);
+        if (in.read() == -1) {
             throw new EOFException();
         }
         return zipEncoding.decode(tmpBuffer);
     }
 
     private int readFully(final byte[] b, final int off, final int len) throws IOException {
-        final int count = IOUtils.readFully(in, b, off, len);
+        final int count = IOUtils.read(in, b, off, len);
         count(count);
         if (count < len) {
             throw new EOFException();
@@ -400,7 +456,7 @@ public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry>
         newEntry.setTime(readAsciiLong(8, 16));
         newEntry.setSize(readAsciiLong(8, 16));
         if (newEntry.getSize() < 0) {
-            throw new IOException("Found illegal entry with negative length");
+            throw new ArchiveException("Found illegal entry with negative length");
         }
         newEntry.setDeviceMaj(readAsciiLong(8, 16));
         newEntry.setDeviceMin(readAsciiLong(8, 16));
@@ -408,25 +464,24 @@ public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry>
         newEntry.setRemoteDeviceMin(readAsciiLong(8, 16));
         final long namesize = readAsciiLong(8, 16);
         if (namesize < 0) {
-            throw new IOException("Found illegal entry with negative name length");
+            throw new ArchiveException("Found illegal entry with negative name length");
         }
         newEntry.setChksum(readAsciiLong(8, 16));
-        final String name = readCString((int) namesize);
+        final String name = readEntryName(ArchiveException.toIntExact(namesize));
         newEntry.setName(name);
         if (CpioUtil.fileType(mode) == 0 && !name.equals(CPIO_TRAILER)) {
-            throw new IOException(
+            throw new ArchiveException(
                     "Mode 0 only allowed in the trailer. Found entry name: " + ArchiveUtils.sanitize(name) + " Occurred at byte: " + getBytesRead());
         }
         final int headerPadCount = newEntry.getHeaderPadCount(namesize - 1);
         if (skip(headerPadCount) != headerPadCount) {
-            throw new IOException("Header pad count mismatch.");
+            throw new ArchiveException("Header pad count mismatch.");
         }
         return newEntry;
     }
 
     private CpioArchiveEntry readOldAsciiEntry() throws IOException {
         final CpioArchiveEntry ret = new CpioArchiveEntry(FORMAT_OLD_ASCII);
-
         ret.setDevice(readAsciiLong(6, 8));
         ret.setInode(readAsciiLong(6, 8));
         final long mode = readAsciiLong(6, 8);
@@ -438,20 +493,20 @@ public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry>
         ret.setNumberOfLinks(readAsciiLong(6, 8));
         ret.setRemoteDevice(readAsciiLong(6, 8));
         ret.setTime(readAsciiLong(11, 8));
-        final long namesize = readAsciiLong(6, 8);
-        if (namesize < 0) {
-            throw new IOException("Found illegal entry with negative name length");
+        final long nameSize = readAsciiLong(6, 8);
+        if (nameSize < 0) {
+            throw new ArchiveException("Found illegal entry with negative name length");
         }
         ret.setSize(readAsciiLong(11, 8));
         if (ret.getSize() < 0) {
-            throw new IOException("Found illegal entry with negative length");
+            throw new ArchiveException("Found illegal entry with negative length");
         }
-        final String name = readCString((int) namesize);
+        final String name = readEntryName(ArchiveException.toIntExact(nameSize));
         ret.setName(name);
         if (CpioUtil.fileType(mode) == 0 && !name.equals(CPIO_TRAILER)) {
-            throw new IOException("Mode 0 only allowed in the trailer. Found entry: " + ArchiveUtils.sanitize(name) + " Occurred at byte: " + getBytesRead());
+            throw new ArchiveException(
+                    "Mode 0 only allowed in the trailer. Found entry: " + ArchiveUtils.sanitize(name) + " Occurred at byte: " + getBytesRead());
         }
-
         return ret;
     }
 
@@ -468,28 +523,29 @@ public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry>
         oldEntry.setNumberOfLinks(readBinaryLong(2, swapHalfWord));
         oldEntry.setRemoteDevice(readBinaryLong(2, swapHalfWord));
         oldEntry.setTime(readBinaryLong(4, swapHalfWord));
-        final long namesize = readBinaryLong(2, swapHalfWord);
-        if (namesize < 0) {
-            throw new IOException("Found illegal entry with negative name length");
+        final long nameSize = readBinaryLong(2, swapHalfWord);
+        if (nameSize < 0) {
+            throw new ArchiveException("Found illegal entry with negative name length");
         }
         oldEntry.setSize(readBinaryLong(4, swapHalfWord));
         if (oldEntry.getSize() < 0) {
-            throw new IOException("Found illegal entry with negative length");
+            throw new ArchiveException("Found illegal entry with negative length");
         }
-        final String name = readCString((int) namesize);
+        final String name = readEntryName(ArchiveException.toIntExact(nameSize));
         oldEntry.setName(name);
         if (CpioUtil.fileType(mode) == 0 && !name.equals(CPIO_TRAILER)) {
-            throw new IOException("Mode 0 only allowed in the trailer. Found entry: " + ArchiveUtils.sanitize(name) + "Occurred at byte: " + getBytesRead());
+            throw new ArchiveException(
+                    "Mode 0 only allowed in the trailer. Found entry: " + ArchiveUtils.sanitize(name) + "Occurred at byte: " + getBytesRead());
         }
-        final int headerPadCount = oldEntry.getHeaderPadCount(namesize - 1);
+        final int headerPadCount = oldEntry.getHeaderPadCount(nameSize - 1);
         if (skip(headerPadCount) != headerPadCount) {
-            throw new IOException("Header pad count mismatch.");
+            throw new ArchiveException("Header pad count mismatch.");
         }
         return oldEntry;
     }
 
     private byte[] readRange(final int len) throws IOException {
-        final byte[] b = IOUtils.readRange(in, len);
+        final byte[] b = org.apache.commons.compress.utils.IOUtils.readRange(in, len);
         count(b.length);
         if (b.length < len) {
             throw new EOFException();
@@ -505,28 +561,27 @@ public class CpioArchiveInputStream extends ArchiveInputStream<CpioArchiveEntry>
     /**
      * Skips specified number of bytes in the current CPIO entry.
      *
-     * @param n the number of bytes to skip
-     * @return the actual number of bytes skipped
-     * @throws IOException              if an I/O error has occurred
-     * @throws IllegalArgumentException if n &lt; 0
+     * @param n the number of bytes to skip.
+     * @return the actual number of bytes skipped.
+     * @throws IOException              if an I/O error has occurred.
+     * @throws IllegalArgumentException if n &lt; 0.
      */
     @Override
     public long skip(final long n) throws IOException {
         if (n < 0) {
             throw new IllegalArgumentException("Negative skip length");
         }
-        ensureOpen();
+        checkOpen();
         final int max = (int) Math.min(n, Integer.MAX_VALUE);
         int total = 0;
-
         while (total < max) {
             int len = max - total;
-            if (len > this.tmpBuf.length) {
-                len = this.tmpBuf.length;
+            if (len > tmpBuf.length) {
+                len = tmpBuf.length;
             }
-            len = read(this.tmpBuf, 0, len);
+            len = read(tmpBuf, 0, len);
             if (len == -1) {
-                this.entryEOF = true;
+                entryEOF = true;
                 break;
             }
             total += len;

@@ -24,10 +24,11 @@ import java.io.PushbackInputStream;
 import java.util.Arrays;
 
 import org.apache.commons.codec.digest.PureJavaCrc32C;
+import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorInputStream;
 import org.apache.commons.compress.utils.ByteUtils;
-import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.compress.utils.InputStreamStatistics;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 
 /**
@@ -68,27 +69,23 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
      * .sz files start with a chunk with tag 0xff and content sNaPpY.
      * </p>
      *
-     * @param signature the bytes to check
-     * @param length    the number of bytes to check
-     * @return true if this is a .sz stream, false otherwise
+     * @param signature the bytes to check.
+     * @param length    the number of bytes to check.
+     * @return true if this is a .sz stream, false otherwise.
      */
     public static boolean matches(final byte[] signature, final int length) {
-
         if (length < SZ_SIGNATURE.length) {
             return false;
         }
-
         byte[] shortenedSig = signature;
         if (signature.length > SZ_SIGNATURE.length) {
             shortenedSig = Arrays.copyOf(signature, SZ_SIGNATURE.length);
         }
-
         return Arrays.equals(shortenedSig, SZ_SIGNATURE);
     }
 
     static long unmask(long x) {
-        // ugly, maybe we should just have used ints and deal with the
-        // overflow
+        // ugly, maybe we should just have used ints and deal with the overflow.
         x -= MASK_OFFSET;
         x &= 0xffffFFFFL;
         return (x >> 17 | x << 15) & 0xffffFFFFL;
@@ -98,7 +95,7 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
 
     private final BoundedInputStream countingStream;
 
-    /** The underlying stream to read compressed data from */
+    /** The underlying stream to read compressed data from. */
     private final PushbackInputStream inputStream;
 
     /** The dialect to expect */
@@ -123,8 +120,8 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
      * Constructs a new input stream that decompresses snappy-framed-compressed data from the specified input stream using the
      * {@link FramedSnappyDialect#STANDARD} dialect.
      *
-     * @param in the InputStream from which to read the compressed data
-     * @throws IOException if reading fails
+     * @param in the InputStream from which to read the compressed data.
+     * @throws IOException if reading fails.
      */
     public FramedSnappyCompressorInputStream(final InputStream in) throws IOException {
         this(in, FramedSnappyDialect.STANDARD);
@@ -133,9 +130,9 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
     /**
      * Constructs a new input stream that decompresses snappy-framed-compressed data from the specified input stream.
      *
-     * @param in      the InputStream from which to read the compressed data
-     * @param dialect the dialect used by the compressed stream
-     * @throws IOException if reading fails
+     * @param in      the InputStream from which to read the compressed data.
+     * @param dialect the dialect used by the compressed stream.
+     * @throws IOException if reading fails.
      */
     public FramedSnappyCompressorInputStream(final InputStream in, final FramedSnappyDialect dialect) throws IOException {
         this(in, SnappyCompressorInputStream.DEFAULT_BLOCK_SIZE, dialect);
@@ -144,11 +141,11 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
     /**
      * Constructs a new input stream that decompresses snappy-framed-compressed data from the specified input stream.
      *
-     * @param in        the InputStream from which to read the compressed data
-     * @param blockSize the block size to use for the compressed stream
-     * @param dialect   the dialect used by the compressed stream
-     * @throws IOException              if reading fails
-     * @throws IllegalArgumentException if blockSize is not bigger than 0
+     * @param in        the InputStream from which to read the compressed data.
+     * @param blockSize the block size to use for the compressed stream.
+     * @param dialect   the dialect used by the compressed stream.
+     * @throws IOException              if reading fails.
+     * @throws IllegalArgumentException if blockSize is not bigger than 0.
      * @since 1.14
      */
     public FramedSnappyCompressorInputStream(final InputStream in, final int blockSize, final FramedSnappyDialect dialect) throws IOException {
@@ -180,10 +177,8 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
     @Override
     public void close() throws IOException {
         try {
-            if (currentCompressedChunk != null) {
-                currentCompressedChunk.close();
-                currentCompressedChunk = null;
-            }
+            IOUtils.close(currentCompressedChunk);
+            currentCompressedChunk = null;
         } finally {
             inputStream.close();
         }
@@ -203,9 +198,9 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
         return read(oneByte, 0, 1) == -1 ? -1 : oneByte[0] & 0xFF;
     }
 
-    /** {@inheritDoc} */
     @Override
     public int read(final byte[] b, final int off, final int len) throws IOException {
+        IOUtils.checkFromIndexSize(b, off, len);
         if (len == 0) {
             return 0;
         }
@@ -222,10 +217,10 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
 
     private long readCrc() throws IOException {
         final byte[] b = new byte[4];
-        final int read = IOUtils.readFully(inputStream, b);
+        final int read = IOUtils.read(inputStream, b);
         count(read);
         if (read != 4) {
-            throw new IOException("Premature end of stream");
+            throw new CompressorException("Premature end of stream");
         }
         return ByteUtils.fromLittleEndian(b);
     }
@@ -246,19 +241,19 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
             skipBlock();
             readNextBlock();
         } else if (type >= MIN_UNSKIPPABLE_TYPE && type <= MAX_UNSKIPPABLE_TYPE) {
-            throw new IOException("Unskippable chunk with type " + type + " (hex " + Integer.toHexString(type) + ")" + " detected.");
+            throw new CompressorException("Unskippable chunk with type %s (hex %s) detected.", type, Integer.toHexString(type));
         } else if (type == UNCOMPRESSED_CHUNK_TYPE) {
             inUncompressedChunk = true;
             uncompressedBytesRemaining = readSize() - 4 /* CRC */;
             if (uncompressedBytesRemaining < 0) {
-                throw new IOException("Found illegal chunk with negative size");
+                throw new CompressorException("Found illegal chunk with negative size");
             }
             expectedChecksum = unmask(readCrc());
         } else if (type == COMPRESSED_CHUNK_TYPE) {
             final boolean expectChecksum = dialect.usesChecksumWithCompressedChunks();
             final long size = readSize() - (expectChecksum ? 4L : 0L);
             if (size < 0) {
-                throw new IOException("Found illegal chunk with negative size");
+                throw new CompressorException("Found illegal chunk with negative size");
             }
             if (expectChecksum) {
                 expectedChecksum = unmask(readCrc());
@@ -277,12 +272,12 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
             count(currentCompressedChunk.getBytesRead());
         } else {
             // impossible as all potential byte values have been covered
-            throw new IOException("Unknown chunk type " + type + " detected.");
+            throw new CompressorException("Unknown chunk type %s detected.", type);
         }
     }
 
     /**
-     * Read from the current chunk into the given array.
+     * Reads from the current chunk into the given array.
      *
      * @return -1 if there is no current chunk or the number of bytes read from the current chunk (which may be -1 if the end of the chunk is reached).
      */
@@ -329,28 +324,28 @@ public class FramedSnappyCompressorInputStream extends CompressorInputStream imp
 
     private void readStreamIdentifier() throws IOException {
         final byte[] b = new byte[10];
-        final int read = IOUtils.readFully(inputStream, b);
+        final int read = IOUtils.read(inputStream, b);
         count(read);
         if (10 != read || !matches(b, 10)) {
-            throw new IOException("Not a framed Snappy stream");
+            throw new CompressorException("Not a framed Snappy stream");
         }
     }
 
     private void skipBlock() throws IOException {
         final int size = readSize();
         if (size < 0) {
-            throw new IOException("Found illegal chunk with negative size");
+            throw new CompressorException("Found illegal chunk with negative size");
         }
-        final long read = org.apache.commons.io.IOUtils.skip(inputStream, size);
+        final long read = IOUtils.skip(inputStream, size);
         count(read);
         if (read != size) {
-            throw new IOException("Premature end of stream");
+            throw new CompressorException("Premature end of stream");
         }
     }
 
     private void verifyLastChecksumAndReset() throws IOException {
         if (expectedChecksum >= 0 && expectedChecksum != checksum.getValue()) {
-            throw new IOException("Checksum verification failed");
+            throw new CompressorException("Checksum verification failed");
         }
         expectedChecksum = -1;
         checksum.reset();

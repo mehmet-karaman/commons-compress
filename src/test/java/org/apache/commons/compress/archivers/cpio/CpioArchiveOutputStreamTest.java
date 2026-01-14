@@ -28,10 +28,10 @@ import java.nio.file.Files;
 import org.apache.commons.compress.AbstractTest;
 import org.junit.jupiter.api.Test;
 
-public class CpioArchiveOutputStreamTest extends AbstractTest {
+class CpioArchiveOutputStreamTest extends AbstractTest {
 
     @Test
-    public void testWriteOldBinary() throws Exception {
+    void testWriteOldBinary() throws Exception {
         final File file = getFile("test1.xml");
         final File output = newTempFile("test.cpio");
         final CpioArchiveOutputStream ref;
@@ -42,7 +42,7 @@ public class CpioArchiveOutputStreamTest extends AbstractTest {
             outputStream.closeArchiveEntry();
         }
         assertTrue(ref.isClosed());
-        try (CpioArchiveInputStream in = new CpioArchiveInputStream(Files.newInputStream(output.toPath()))) {
+        try (CpioArchiveInputStream in = CpioArchiveInputStream.builder().setFile(output).get()) {
             final CpioArchiveEntry e = in.getNextCPIOEntry();
             assertEquals("test1.xml", e.getName());
             assertNull(in.getNextEntry());

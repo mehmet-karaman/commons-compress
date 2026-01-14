@@ -27,9 +27,11 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.compress.archivers.ArchiveOutputStream;
 import org.apache.commons.compress.archivers.zip.ZipEncoding;
 import org.apache.commons.compress.archivers.zip.ZipEncodingHelper;
+import org.apache.commons.io.IOUtils;
 
 /**
  * CpioArchiveOutputStream is a stream for writing CPIO streams. All formats of CPIO are supported (old ASCII, old binary, new portable format and the new
@@ -101,7 +103,7 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
     /**
      * Constructs the cpio output stream. The format for this CPIO stream is the "new" format using ASCII encoding for file names
      *
-     * @param out The cpio stream
+     * @param out The cpio stream.
      */
     public CpioArchiveOutputStream(final OutputStream out) {
         this(out, FORMAT_NEW);
@@ -111,30 +113,30 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
      * Constructs the cpio output stream with a specified format, a blocksize of {@link CpioConstants#BLOCK_SIZE BLOCK_SIZE} and using ASCII as the file name
      * encoding.
      *
-     * @param out    The cpio stream
-     * @param format The format of the stream
+     * @param out    The cpio stream.
+     * @param format The format of the stream.
      */
     public CpioArchiveOutputStream(final OutputStream out, final short format) {
-        this(out, format, BLOCK_SIZE, CpioUtil.DEFAULT_CHARSET_NAME);
+        this(out, format, BLOCK_SIZE, CpioUtil.DEFAULT_CHARSET.name());
     }
 
     /**
      * Constructs the cpio output stream with a specified format using ASCII as the file name encoding.
      *
-     * @param out       The cpio stream
-     * @param format    The format of the stream
+     * @param out       The cpio stream.
+     * @param format    The format of the stream.
      * @param blockSize The block size of the archive.
      * @since 1.1
      */
     public CpioArchiveOutputStream(final OutputStream out, final short format, final int blockSize) {
-        this(out, format, blockSize, CpioUtil.DEFAULT_CHARSET_NAME);
+        this(out, format, blockSize, CpioUtil.DEFAULT_CHARSET.name());
     }
 
     /**
      * Constructs the cpio output stream with a specified format using ASCII as the file name encoding.
      *
-     * @param out       The cpio stream
-     * @param format    The format of the stream
+     * @param out       The cpio stream.
+     * @param format    The format of the stream.
      * @param blockSize The block size of the archive.
      * @param encoding  The encoding of file names to write - use null for the platform's default.
      * @since 1.6
@@ -160,7 +162,7 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
     /**
      * Constructs the cpio output stream. The format for this CPIO stream is the "new" format.
      *
-     * @param out      The cpio stream
+     * @param out      The cpio stream.
      * @param encoding The encoding of file names to write - use null for the platform's default.
      * @since 1.6
      */
@@ -171,7 +173,7 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
     /**
      * Closes the CPIO output stream as well as the stream being filtered.
      *
-     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred
+     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred.
      */
     @Override
     public void close() throws IOException {
@@ -187,22 +189,22 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
     /*
      * (non-Javadoc)
      *
-     * @see org.apache.commons.compress.archivers.ArchiveOutputStream#closeArchiveEntry ()
+     * @see org.apache.commons.compress.archivers.ArchiveOutputStream#closeArchiveEntry()
      */
     @Override
     public void closeArchiveEntry() throws IOException {
         checkFinished();
         checkOpen();
         if (entry == null) {
-            throw new IOException("Trying to close non-existent entry");
+            throw new ArchiveException("Trying to close non-existent entry");
         }
 
         if (this.entry.getSize() != this.written) {
-            throw new IOException("Invalid entry size (expected " + this.entry.getSize() + " but got " + this.written + " bytes)");
+            throw new ArchiveException("Invalid entry size (expected " + this.entry.getSize() + " but got " + this.written + " bytes)");
         }
         pad(this.entry.getDataPadCount());
         if (this.entry.getFormat() == FORMAT_NEW_CRC && this.crc != this.entry.getChksum()) {
-            throw new IOException("CRC Error");
+            throw new ArchiveException("CRC Error");
         }
         this.entry = null;
         this.crc = 0;
@@ -234,9 +236,9 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
     /**
      * Encodes the given string using the configured encoding.
      *
-     * @param str the String to write
-     * @throws IOException if the string couldn't be written
-     * @return result of encoding the string
+     * @param str the String to write.
+     * @throws IOException if the string couldn't be written.
+     * @return result of encoding the string.
      */
     private byte[] encode(final String str) throws IOException {
         final ByteBuffer buf = zipEncoding.encode(str);
@@ -248,22 +250,20 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
      * Finishes writing the contents of the CPIO output stream without closing the underlying stream. Use this method when applying multiple filters in
      * succession to the same output stream.
      *
-     * @throws IOException if an I/O exception has occurred or if a CPIO file error has occurred
+     * @throws IOException if an I/O exception has occurred or if a CPIO file error has occurred.
      */
     @Override
     public void finish() throws IOException {
         checkOpen();
         checkFinished();
-
         if (this.entry != null) {
-            throw new IOException("This archive contains unclosed entries.");
+            throw new ArchiveException("This archive contains unclosed entries.");
         }
         this.entry = new CpioArchiveEntry(this.entryFormat);
         this.entry.setName(CPIO_TRAILER);
         this.entry.setNumberOfLinks(1);
         writeHeader(this.entry);
         closeArchiveEntry();
-
         final int lengthOfLastBlock = (int) (getBytesWritten() % blockSize);
         if (lengthOfLastBlock != 0) {
             pad(blockSize - lengthOfLastBlock);
@@ -282,9 +282,9 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
      * Begins writing a new CPIO file entry and positions the stream to the start of the entry data. Closes the current entry if still active. The current time
      * will be used if the entry has no set modification time and the default header format will be used if no other format is specified in the entry.
      *
-     * @param entry the CPIO cpioEntry to be written
-     * @throws IOException        if an I/O error has occurred or if a CPIO file error has occurred
-     * @throws ClassCastException if entry is not an instance of CpioArchiveEntry
+     * @param entry the CPIO cpioEntry to be written.
+     * @throws IOException        if an I/O error has occurred or if a CPIO file error has occurred.
+     * @throws ClassCastException if entry is not an instance of CpioArchiveEntry.
      */
     @Override
     public void putArchiveEntry(final CpioArchiveEntry entry) throws IOException {
@@ -296,16 +296,13 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
         if (entry.getTime() == -1) {
             entry.setTime(System.currentTimeMillis() / 1000);
         }
-
         final short format = entry.getFormat();
         if (format != this.entryFormat) {
-            throw new IOException("Header format: " + format + " does not match existing format: " + this.entryFormat);
+            throw new ArchiveException("Header format: '%s' does not match existing format: '%s'", format, this.entryFormat);
         }
-
         if (this.names.put(entry.getName(), entry) != null) {
-            throw new IOException("Duplicate entry: " + entry.getName());
+            throw new ArchiveException("Duplicate entry: " + entry.getName());
         }
-
         writeHeader(entry);
         this.entry = entry;
         this.written = 0;
@@ -314,26 +311,25 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
     /**
      * Writes an array of bytes to the current CPIO entry data. This method will block until all the bytes are written.
      *
-     * @param b   the data to be written
-     * @param off the start offset in the data
-     * @param len the number of bytes that are written
-     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred
+     * @param b   the data to be written.
+     * @param off the start offset in the data.
+     * @param len the number of bytes that are written.
+     * @throws NullPointerException      if b is null.
+     * @throws IndexOutOfBoundsException if {@code off} or {@code len} are negative, or if {@code off + len} is greater than {@code b.length}.
+     * @throws IOException if an I/O error has occurred or if a CPIO file error has occurred.
      */
     @Override
     public void write(final byte[] b, final int off, final int len) throws IOException {
-        checkOpen();
-        if (off < 0 || len < 0 || off > b.length - len) {
-            throw new IndexOutOfBoundsException();
-        }
+        IOUtils.checkFromIndexSize(b, off, len);
         if (len == 0) {
             return;
         }
-
+        checkOpen();
         if (this.entry == null) {
-            throw new IOException("No current CPIO entry");
+            throw new ArchiveException("No current CPIO entry");
         }
         if (this.written + len > this.entry.getSize()) {
-            throw new IOException("Attempt to write past end of STORED entry");
+            throw new ArchiveException("Attempt to write past end of STORED entry");
         }
         out.write(b, off, len);
         this.written += len;
@@ -356,7 +352,6 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
         } else {
             tmp.append(number);
         }
-
         if (tmp.length() <= length) {
             final int insertLength = length - tmp.length();
             for (int pos = 0; pos < insertLength; pos++) {
@@ -379,8 +374,8 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
     /**
      * Writes an encoded string to the stream followed by \0
      *
-     * @param str the String to write
-     * @throws IOException if the string couldn't be written
+     * @param str the String to write.
+     * @throws IOException if the string couldn't be written.
      */
     private void writeCString(final byte[] str) throws IOException {
         out.write(str);
@@ -411,7 +406,7 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
             writeOldBinaryEntry(e, swapHalfWord);
             break;
         default:
-            throw new IOException("Unknown format " + e.getFormat());
+            throw new ArchiveException("Unknown format '%s'", e.getFormat());
         }
     }
 
@@ -426,7 +421,6 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
         } else {
             nextArtificalDeviceAndInode = Math.max(nextArtificalDeviceAndInode, inode + 0x100000000L * devMin) + 1;
         }
-
         writeAsciiLong(inode, 8, 16);
         writeAsciiLong(entry.getMode(), 8, 16);
         writeAsciiLong(entry.getUID(), 8, 16);
@@ -456,7 +450,6 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
         } else {
             nextArtificalDeviceAndInode = Math.max(nextArtificalDeviceAndInode, inode + 01000000 * device) + 1;
         }
-
         writeAsciiLong(device, 6, 8);
         writeAsciiLong(inode, 6, 8);
         writeAsciiLong(entry.getMode(), 6, 8);
@@ -482,7 +475,6 @@ public class CpioArchiveOutputStream extends ArchiveOutputStream<CpioArchiveEntr
         } else {
             nextArtificalDeviceAndInode = Math.max(nextArtificalDeviceAndInode, inode + 0x10000 * device) + 1;
         }
-
         writeBinaryLong(device, 2, swapHalfWord);
         writeBinaryLong(inode, 2, swapHalfWord);
         writeBinaryLong(entry.getMode(), 2, swapHalfWord);

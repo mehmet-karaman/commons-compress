@@ -62,10 +62,10 @@ import java.util.BitSet;
  * For more information see for example:
  * </p>
  * <ul>
- * <li><a href="http://www.hpl.hp.com/techreports/Compaq-DEC/SRC-RR-124.pdf">Burrows, M. and Wheeler, D.: A Block-sorting Lossless Data Compression
+ * <li><a href="https://www.hpl.hp.com/techreports/Compaq-DEC/SRC-RR-124.pdf">Burrows, M. and Wheeler, D.: A Block-sorting Lossless Data Compression
  * Algorithm</a></li>
- * <li><a href="http://webglimpse.net/pubs/suffix.pdf">Manber, U. and Myers, G.: Suffix arrays: A new method for on-line string searches</a></li>
- * <li><a href="http://www.cs.tufts.edu/~nr/comp150fp/archive/bob-sedgewick/fast-strings.pdf">Bentley, J.L. and Sedgewick, R.: Fast Algorithms for Sorting and
+ * <li><a href="https://webglimpse.net/pubs/suffix.pdf">Manber, U. and Myers, G.: Suffix arrays: A new method for on-line string searches</a></li>
+ * <li><a href="https://www.cs.tufts.edu/~nr/comp150fp/archive/bob-sedgewick/fast-strings.pdf">Bentley, J.L. and Sedgewick, R.: Fast Algorithms for Sorting and
  * Searching Strings</a></li>
  * </ul>
  *
@@ -241,11 +241,11 @@ final class BlockSort {
      */
 
     /**
-     * @param fmap   points to the index of the starting point of a permutation inside the block of data in the current partially sorted order
+     * @param fmap   points to the index of the starting point of a permutation inside the block of data in the current partially sorted order.
      * @param eclass points from the index of a character inside the block to the first index in fmap that contains the bucket of its suffix that is sorted in
      *               this step.
-     * @param loSt   lower boundary of the fmap-interval to be sorted
-     * @param hiSt   upper boundary of the fmap-interval to be sorted
+     * @param loSt   lower boundary of the fmap-interval to be sorted.
+     * @param hiSt   upper boundary of the fmap-interval to be sorted.
      */
     private void fallbackQSort3(final int[] fmap, final int[] eclass, final int loSt, final int hiSt) {
         int lo;
@@ -355,11 +355,11 @@ final class BlockSort {
     /*---------------------------------------------*/
 
     /**
-     * @param fmap   points to the index of the starting point of a permutation inside the block of data in the current partially sorted order
+     * @param fmap   points to the index of the starting point of a permutation inside the block of data in the current partially sorted order.
      * @param eclass points from the index of a character inside the block to the first index in fmap that contains the bucket of its suffix that is sorted in
      *               this step.
-     * @param lo     lower boundary of the fmap-interval to be sorted
-     * @param hi     upper boundary of the fmap-interval to be sorted
+     * @param lo     lower boundary of the fmap-interval to be sorted.
+     * @param hi     upper boundary of the fmap-interval to be sorted.
      */
     private void fallbackSimpleSort(final int[] fmap, final int[] eclass, final int lo, final int hi) {
         if (lo == hi) {
@@ -415,9 +415,9 @@ final class BlockSort {
     --*/
 
     /**
-     * @param fmap   points to the index of the starting point of a permutation inside the block of data in the current partially sorted order
-     * @param block  the original data
-     * @param nblock size of the block
+     * @param fmap   points to the index of the starting point of a permutation inside the block of data in the current partially sorted order.
+     * @param block  the original data.
+     * @param nblock size of the block.
      */
     void fallbackSort(final int[] fmap, final byte[] block, final int nblock) {
         final int[] ftab = new int[257];

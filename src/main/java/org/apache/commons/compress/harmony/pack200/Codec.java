@@ -31,6 +31,8 @@ import org.apache.commons.io.input.BoundedInputStream;
  * efficient formats. There are also a sequence of canonical encodings defined by the Pack200 specification, which allow a Codec to be referred to by canonical
  * number. {@link CodecEncoding#getCodec(int, InputStream, Codec)})
  * </p>
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public abstract class Codec {
 
@@ -81,7 +83,16 @@ public abstract class Codec {
      */
     public static final BHSDCodec UNSIGNED5 = new BHSDCodec(5, 64);
 
+    /**
+     * The length of the last band processed.
+     */
     public int lastBandLength;
+
+    /**
+     * Constructs a new Codec.
+     */
+    public Codec() {
+    }
 
     int check(final int n, final InputStream in) throws Pack200Exception {
         if (in instanceof BoundedInputStream) {
@@ -92,7 +103,7 @@ public abstract class Codec {
                 final long remaining = maxLength - count;
                 final String format = "Can't read beyond end of stream (n = %,d, count = %,d, maxLength = %,d, remaining = %,d)";
                 if (count < -1 || n > remaining) {
-                    throw new Pack200Exception(String.format(format, n, count, maxLength, remaining));
+                    throw new Pack200Exception(format, n, count, maxLength, remaining);
                 }
             }
         }
@@ -143,7 +154,7 @@ public abstract class Codec {
      */
     public int[] decodeInts(final int n, final InputStream in) throws IOException, Pack200Exception {
         lastBandLength = 0;
-        final int[] result = new int[check(n, in)];
+        final int[] result = new int[Pack200Exception.checkIntArray(check(n, in))];
         int last = 0;
         for (int i = 0; i < n; i++) {
             result[i] = last = decode(in, last);
@@ -162,7 +173,7 @@ public abstract class Codec {
      * @throws Pack200Exception if there is a problem decoding the value or that the value is invalid
      */
     public int[] decodeInts(final int n, final InputStream in, final int firstValue) throws IOException, Pack200Exception {
-        final int[] result = new int[check(n, in) + 1];
+        final int[] result = new int[Pack200Exception.checkIntArray(check(n, in) + 1)];
         result[0] = firstValue;
         int last = firstValue;
         for (int i = 1; i < n + 1; i++) {
@@ -174,28 +185,28 @@ public abstract class Codec {
     /**
      * Encodes a single value into a sequence of bytes. Note that this method can only be used for non-delta encodings.
      *
-     * @param value the value to encode
-     * @return the encoded bytes
-     * @throws Pack200Exception TODO
+     * @param value the value to encode.
+     * @return the encoded bytes.
+     * @throws Pack200Exception If a Pack200 semantic error occurs.
      */
     public abstract byte[] encode(int value) throws Pack200Exception;
 
     /**
      * Encodes a single value into a sequence of bytes.
      *
-     * @param value the value to encode
-     * @param last  the previous value encoded (for delta encodings)
-     * @return the encoded bytes
-     * @throws Pack200Exception TODO
+     * @param value the value to encode.
+     * @param last  the previous value encoded (for delta encodings).
+     * @return the encoded bytes.
+     * @throws Pack200Exception If a Pack200 semantic error occurs.
      */
     public abstract byte[] encode(int value, int last) throws Pack200Exception;
 
     /**
-     * Encodes a sequence of integers into a byte array
+     * Encodes a sequence of integers into a byte array.
      *
-     * @param ints the values to encode
-     * @return byte[] encoded bytes
-     * @throws Pack200Exception if there is a problem encoding any of the values
+     * @param ints the values to encode.
+     * @return byte[] encoded bytes.
+     * @throws Pack200Exception if there is a problem encoding any of the values.
      */
     public byte[] encode(final int[] ints) throws Pack200Exception {
         int total = 0;

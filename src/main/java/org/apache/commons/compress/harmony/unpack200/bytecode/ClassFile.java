@@ -23,22 +23,75 @@ import java.io.IOException;
 
 /**
  * ClassFile is used to represent and write out Java class files.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class ClassFile {
 
     private static final int MAGIC = 0xCAFEBABE;
 
+    /**
+     * The major version number.
+     */
     public int major;
+
+    /**
+     * The minor version number.
+     */
     public int minor;
+
+    /**
+     * The constant pool.
+     */
     public ClassConstantPool pool = new ClassConstantPool();
+
+    /**
+     * The access flags.
+     */
     public int accessFlags;
+
+    /**
+     * The index of this class in the constant pool.
+     */
     public int thisClass;
+
+    /**
+     * The index of the super class in the constant pool.
+     */
     public int superClass;
+
+    /**
+     * The interfaces.
+     */
     public int[] interfaces;
+
+    /**
+     * The fields.
+     */
     public ClassFileEntry[] fields;
+
+    /**
+     * The methods.
+     */
     public ClassFileEntry[] methods;
+
+    /**
+     * The attributes.
+     */
     public Attribute[] attributes;
 
+    /**
+     * Constructs a new ClassFile.
+     */
+    public ClassFile() {
+    }
+
+    /**
+     * Writes this class file to the specified output stream.
+     *
+     * @param dos the data output stream.
+     * @throws IOException if an I/O error occurs.
+     */
     public void write(final DataOutputStream dos) throws IOException {
         dos.writeInt(MAGIC);
         dos.writeShort(minor);

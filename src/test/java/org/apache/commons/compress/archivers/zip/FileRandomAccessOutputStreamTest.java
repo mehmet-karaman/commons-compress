@@ -35,15 +35,16 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
 import org.apache.commons.compress.AbstractTempDirTest;
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link FileRandomAccessOutputStream}.
  */
-public class FileRandomAccessOutputStreamTest extends AbstractTempDirTest {
+class FileRandomAccessOutputStreamTest extends AbstractTempDirTest {
 
     @Test
-    public void testChannelReturn() throws IOException {
+    void testChannelReturn() throws IOException {
         final Path file = newTempPath("testChannel");
         try (FileRandomAccessOutputStream stream = new FileRandomAccessOutputStream(file)) {
             assertNotNull(stream.channel());
@@ -51,7 +52,7 @@ public class FileRandomAccessOutputStreamTest extends AbstractTempDirTest {
     }
 
     @Test
-    public void testClose() throws IOException {
+    void testClose() throws IOException {
         final Path file = newTempPath("testChannel");
         try (FileRandomAccessOutputStream stream = new FileRandomAccessOutputStream(file)) {
             assertNotNull(stream.channel());
@@ -61,7 +62,7 @@ public class FileRandomAccessOutputStreamTest extends AbstractTempDirTest {
     }
 
     @Test
-    public void testWrite() throws IOException {
+    void testWrite() throws IOException {
         final FileChannel channel = mock(FileChannel.class);
         final FileRandomAccessOutputStream stream = new FileRandomAccessOutputStream(channel);
         when(channel.write((ByteBuffer) any())).thenAnswer(answer -> {
@@ -78,7 +79,7 @@ public class FileRandomAccessOutputStreamTest extends AbstractTempDirTest {
     }
 
     @Test
-    public void testWriteFullyAt_whenFullAtOnce_thenSucceed() throws IOException {
+    void testWriteFullyAt_whenFullAtOnce_thenSucceed() throws IOException {
         final FileChannel channel = mock(FileChannel.class);
         final FileRandomAccessOutputStream stream = new FileRandomAccessOutputStream(channel);
         when(channel.write((ByteBuffer) any(), eq(20L))).thenAnswer(answer -> {
@@ -89,17 +90,17 @@ public class FileRandomAccessOutputStreamTest extends AbstractTempDirTest {
             ((ByteBuffer) answer.getArgument(0)).position(6);
             return 6;
         });
-        stream.writeFully("hello".getBytes(StandardCharsets.UTF_8), 20);
-        stream.writeFully("world\n".getBytes(StandardCharsets.UTF_8), 30);
+        stream.writeAll("hello".getBytes(StandardCharsets.UTF_8), 20);
+        stream.writeAll("world\n".getBytes(StandardCharsets.UTF_8), 30);
 
         verify(channel, times(1)).write((ByteBuffer) any(), eq(20L));
         verify(channel, times(1)).write((ByteBuffer) any(), eq(30L));
 
-        assertEquals(0, stream.position());
+        assertEquals(11, stream.position());
     }
 
     @Test
-    public void testWriteFullyAt_whenFullButPartial_thenSucceed() throws IOException {
+    void testWriteFullyAt_whenFullButPartial_thenSucceed() throws IOException {
         final FileChannel channel = mock(FileChannel.class);
         final FileRandomAccessOutputStream stream = new FileRandomAccessOutputStream(channel);
         when(channel.write((ByteBuffer) any(), eq(20L))).thenAnswer(answer -> {
@@ -114,28 +115,28 @@ public class FileRandomAccessOutputStreamTest extends AbstractTempDirTest {
             ((ByteBuffer) answer.getArgument(0)).position(6);
             return 6;
         });
-        stream.writeFully("hello".getBytes(StandardCharsets.UTF_8), 20);
-        stream.writeFully("world\n".getBytes(StandardCharsets.UTF_8), 30);
+        stream.writeAll("hello".getBytes(StandardCharsets.UTF_8), 20);
+        stream.writeAll("world\n".getBytes(StandardCharsets.UTF_8), 30);
 
         verify(channel, times(1)).write((ByteBuffer) any(), eq(20L));
         verify(channel, times(1)).write((ByteBuffer) any(), eq(23L));
         verify(channel, times(1)).write((ByteBuffer) any(), eq(30L));
 
-        assertEquals(0, stream.position());
+        assertEquals(11, stream.position());
     }
 
     @Test
-    public void testWriteFullyAt_whenPartial_thenFail() throws IOException {
+    void testWriteFullyAt_whenPartial_thenFail() throws IOException {
         final FileChannel channel = mock(FileChannel.class);
         final FileRandomAccessOutputStream stream = new FileRandomAccessOutputStream(channel);
-        when(channel.write((ByteBuffer) any(), eq(20L))).thenAnswer(answer -> {
+        when(channel.write((ByteBuffer) any(), eq(20L))).thenAnswer(answer -> 0).thenAnswer(answer -> {
             ((ByteBuffer) answer.getArgument(0)).position(3);
             return 3;
         });
-        when(channel.write((ByteBuffer) any(), eq(23L))).thenAnswer(answer -> 0);
-        assertThrows(IOException.class, () -> stream.writeFully("hello".getBytes(StandardCharsets.UTF_8), 20));
+        when(channel.write((ByteBuffer) any(), eq(23L))).thenAnswer(answer -> -1);
+        assertThrows(ArchiveException.class, () -> stream.writeAll("hello".getBytes(StandardCharsets.UTF_8), 20));
 
-        verify(channel, times(1)).write((ByteBuffer) any(), eq(20L));
+        verify(channel, times(2)).write((ByteBuffer) any(), eq(20L));
         verify(channel, times(1)).write((ByteBuffer) any(), eq(23L));
         verify(channel, times(0)).write((ByteBuffer) any(), eq(25L));
 

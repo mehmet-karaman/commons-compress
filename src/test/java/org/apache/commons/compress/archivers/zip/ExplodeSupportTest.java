@@ -25,10 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Files;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedOutputStream;
 
@@ -36,7 +34,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.junit.jupiter.api.Test;
 
-public class ExplodeSupportTest {
+class ExplodeSupportTest {
 
     private void testArchiveWithImplodeCompression(final String fileName, final String entryName) throws IOException {
         try (ZipFile zip = ZipFile.builder().setFile(fileName).get()) {
@@ -56,17 +54,17 @@ public class ExplodeSupportTest {
     }
 
     @Test
-    public void testArchiveWithImplodeCompression4K2Trees() throws IOException {
+    void testArchiveWithImplodeCompression4K2Trees() throws IOException {
         testArchiveWithImplodeCompression("target/test-classes/imploding-4Kdict-2trees.zip", "HEADER.TXT");
     }
 
     @Test
-    public void testArchiveWithImplodeCompression8K3Trees() throws IOException {
+    void testArchiveWithImplodeCompression8K3Trees() throws IOException {
         testArchiveWithImplodeCompression("target/test-classes/imploding-8Kdict-3trees.zip", "LICENSE.TXT");
     }
 
     @Test
-    public void testConstructorThrowsExceptions() {
+    void testConstructorThrowsExceptions() {
         assertThrows(IllegalArgumentException.class, () -> new ExplodingInputStream(4095, 2, new ByteArrayInputStream(new byte[] {})),
                 "should have failed with illegal argument exception");
 
@@ -75,17 +73,17 @@ public class ExplodeSupportTest {
     }
 
     @Test
-    public void testTikaTestArchive() throws IOException {
+    void testTikaTestArchive() throws IOException {
         testArchiveWithImplodeCompression("target/test-classes/moby-imploded.zip", "README");
     }
 
     @Test
-    public void testTikaTestStream() throws IOException {
+    void testTikaTestStream() throws IOException {
         testZipStreamWithImplodeCompression("target/test-classes/moby-imploded.zip", "README");
     }
 
     private void testZipStreamWithImplodeCompression(final String fileName, final String entryName) throws IOException {
-        try (ZipArchiveInputStream zin = new ZipArchiveInputStream(Files.newInputStream(new File(fileName).toPath()))) {
+        try (ZipArchiveInputStream zin = ZipArchiveInputStream.builder().setFile(fileName).get()) {
             final ZipArchiveEntry entry = zin.getNextZipEntry();
             assertEquals(entryName, entry.getName(), "entry name");
             assertTrue(zin.canReadEntryData(entry), "entry can't be read");
@@ -101,12 +99,12 @@ public class ExplodeSupportTest {
     }
 
     @Test
-    public void testZipStreamWithImplodeCompression4K2Trees() throws IOException {
+    void testZipStreamWithImplodeCompression4K2Trees() throws IOException {
         testZipStreamWithImplodeCompression("target/test-classes/imploding-4Kdict-2trees.zip", "HEADER.TXT");
     }
 
     @Test
-    public void testZipStreamWithImplodeCompression8K3Trees() throws IOException {
+    void testZipStreamWithImplodeCompression8K3Trees() throws IOException {
         testZipStreamWithImplodeCompression("target/test-classes/imploding-8Kdict-3trees.zip", "LICENSE.TXT");
     }
 

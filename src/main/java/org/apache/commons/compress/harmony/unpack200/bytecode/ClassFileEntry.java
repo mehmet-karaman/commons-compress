@@ -23,17 +23,39 @@ import java.io.IOException;
 
 /**
  * The abstract superclass for all types of class file entries.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public abstract class ClassFileEntry {
 
+    /**
+     * An empty ClassFileEntry array.
+     */
     protected static final ClassFileEntry[] NONE = {};
     private boolean resolved;
 
+    /**
+     * Constructs a new ClassFileEntry.
+     */
+    public ClassFileEntry() {
+    }
+
+    /**
+     * Writes this instance to the output stream.
+     *
+     * @param dos the output stream.
+     * @throws IOException if an I/O error occurs.
+     */
     protected abstract void doWrite(DataOutputStream dos) throws IOException;
 
     @Override
     public abstract boolean equals(Object arg0);
 
+    /**
+     * Returns an empty array.
+     *
+     * @return an empty array.
+     */
     protected ClassFileEntry[] getNestedClassFileEntries() {
         return NONE;
     }
@@ -41,6 +63,11 @@ public abstract class ClassFileEntry {
     @Override
     public abstract int hashCode();
 
+    /**
+     * Delegates to super {@link #hashCode}.
+     *
+     * @return super {@link #hashCode}.
+     */
     protected int objectHashCode() {
         return super.hashCode();
     }
@@ -48,7 +75,7 @@ public abstract class ClassFileEntry {
     /**
      * Allows the constant pool entries to resolve their nested entries.
      *
-     * @param pool TODO
+     * @param pool The class constant pool.
      */
     protected void resolve(final ClassConstantPool pool) {
         resolved = true;
@@ -57,6 +84,12 @@ public abstract class ClassFileEntry {
     @Override
     public abstract String toString();
 
+    /**
+     * Writes this instance to the output stream.
+     *
+     * @param dos the output stream.
+     * @throws IOException if an I/O error occurs.
+     */
     public final void write(final DataOutputStream dos) throws IOException {
         if (!resolved) {
             throw new IllegalStateException("Entry has not been resolved");

@@ -20,15 +20,23 @@ package org.apache.commons.compress.harmony.pack200;
 
 import java.util.Arrays;
 
+import org.apache.commons.lang3.math.NumberUtils;
+
 /**
  * IntList is based on {@link java.util.ArrayList}, but is written specifically for ints in order to reduce boxing and unboxing to Integers, reduce the memory
  * required and improve performance of pack200.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class IntList {
 
+    private static int calculateIncrement(final int size, final int required) {
+        return NumberUtils.max(size / 2, required, 12);
+    }
     private int[] array;
     private int firstIndex;
     private int lastIndex;
+
     private int modCount;
 
     /**
@@ -66,6 +74,12 @@ public class IntList {
         return true;
     }
 
+    /**
+     * Adds an integer at the specified location.
+     *
+     * @param location the location.
+     * @param object the integer to add.
+     */
     public void add(final int location, final int object) {
         final int size = lastIndex - firstIndex;
         if (0 < location && location < size) {
@@ -96,6 +110,11 @@ public class IntList {
         modCount++;
     }
 
+    /**
+     * Adds all integers from the specified list.
+     *
+     * @param list the list to add.
+     */
     public void addAll(final IntList list) {
         growAtEnd(list.size());
         for (int i = 0; i < list.size(); i++) {
@@ -103,6 +122,9 @@ public class IntList {
         }
     }
 
+    /**
+     * Clears all integers from this list.
+     */
     public void clear() {
         if (firstIndex != lastIndex) {
             Arrays.fill(array, firstIndex, lastIndex, -1);
@@ -111,6 +133,12 @@ public class IntList {
         }
     }
 
+    /**
+     * Gets the integer at the specified location.
+     *
+     * @param location the location.
+     * @return the integer at the location.
+     */
     public int get(final int location) {
         if (0 <= location && location < lastIndex - firstIndex) {
             return array[firstIndex + location];
@@ -128,13 +156,7 @@ public class IntList {
             firstIndex = 0;
             lastIndex = newLast;
         } else {
-            int increment = size / 2;
-            if (required > increment) {
-                increment = required;
-            }
-            if (increment < 12) {
-                increment = 12;
-            }
+            final int increment = calculateIncrement(size, required);
             final int[] newArray = new int[size + increment];
             if (size > 0) {
                 System.arraycopy(array, firstIndex, newArray, 0, size);
@@ -155,13 +177,7 @@ public class IntList {
             firstIndex = newFirst;
             lastIndex = array.length;
         } else {
-            int increment = size / 2;
-            if (required > increment) {
-                increment = required;
-            }
-            if (increment < 12) {
-                increment = 12;
-            }
+            final int increment = calculateIncrement(size, required);
             final int[] newArray = new int[size + increment];
             if (size > 0) {
                 System.arraycopy(array, firstIndex, newArray, newArray.length - size, size);
@@ -172,15 +188,10 @@ public class IntList {
         }
     }
 
+
     private void growForInsert(final int location, final int required) {
         final int size = lastIndex - firstIndex;
-        int increment = size / 2;
-        if (required > increment) {
-            increment = required;
-        }
-        if (increment < 12) {
-            increment = 12;
-        }
+        final int increment = calculateIncrement(size, required);
         final int[] newArray = new int[size + increment];
         final int newFirst = increment - required;
         // Copy elements after location to the new array skipping inserted
@@ -194,6 +205,11 @@ public class IntList {
         array = newArray;
     }
 
+    /**
+     * Increments the integer at the specified location.
+     *
+     * @param location the location.
+     */
     public void increment(final int location) {
         if (0 > location || location >= lastIndex - firstIndex) {
             throw new IndexOutOfBoundsException("" + location);
@@ -201,10 +217,21 @@ public class IntList {
         array[firstIndex + location]++;
     }
 
+    /**
+     * Tests whether this list is empty.
+     *
+     * @return true if this list is empty.
+     */
     public boolean isEmpty() {
         return lastIndex == firstIndex;
     }
 
+    /**
+     * Removes and returns the integer at the specified location.
+     *
+     * @param location the location.
+     * @return the integer that was removed.
+     */
     public int remove(final int location) {
         final int result;
         final int size = lastIndex - firstIndex;
@@ -236,10 +263,20 @@ public class IntList {
         return result;
     }
 
+    /**
+     * Gets the number of integers in this list.
+     *
+     * @return the size of the list.
+     */
     public int size() {
         return lastIndex - firstIndex;
     }
 
+    /**
+     * Converts this list to an array.
+     *
+     * @return an array containing all integers in this list.
+     */
     public int[] toArray() {
         final int size = lastIndex - firstIndex;
         final int[] result = new int[size];

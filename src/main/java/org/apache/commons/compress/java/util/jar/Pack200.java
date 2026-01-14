@@ -142,7 +142,7 @@ public abstract class Pack200 {
         /**
          * Adds a listener for PropertyChange events
          *
-         * @param listener the listener to listen if PropertyChange events occurs
+         * @param listener the listener to listen if PropertyChange events occurs.
          */
         void addPropertyChangeListener(PropertyChangeListener listener);
 
@@ -150,7 +150,7 @@ public abstract class Pack200 {
          * Packs the specified JAR file to the specified output stream.
          *
          * @param in  JAR file to be compressed.
-         * @param out stream of compressed data.
+         * @param out target output stream for the compressed data.
          * @throws IOException if I/O exception occurs.
          */
         void pack(JarFile in, OutputStream out) throws IOException;
@@ -158,8 +158,8 @@ public abstract class Pack200 {
         /**
          * Packs the data from the specified jar input stream to the specified output stream.
          *
-         * @param in  stream of uncompressed JAR data.
-         * @param out stream of compressed data.
+         * @param in  input stream of uncompressed JAR data.
+         * @param out target output stream for the compressed data.
          * @throws IOException if I/O exception occurs.
          */
         void pack(JarInputStream in, OutputStream out) throws IOException;
@@ -174,7 +174,7 @@ public abstract class Pack200 {
         /**
          * Removes a listener
          *
-         * @param listener listener to remove
+         * @param listener listener to remove.
          */
         void removePropertyChangeListener(PropertyChangeListener listener);
     }
@@ -283,7 +283,7 @@ public abstract class Pack200 {
      * instance of the specified class is returned, otherwise the system's default implementation is returned.
      * </p>
      *
-     * @return an instance of {@code Packer}
+     * @return an instance of {@code Packer}.
      */
     public static Pack200.Packer newPacker() {
         return (Packer) newInstance(SYSTEM_PROPERTY_PACKER, "org.apache.commons.compress.harmony.pack200.Pack200PackerAdapter"); //$NON-NLS-1$

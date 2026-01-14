@@ -56,19 +56,19 @@ public class ArchiveOutputStreamTest<O extends ArchiveOutputStream<E>, E extends
         // TODO - check if archives ensure that data has been written to the stream?
 
         final O aos2 = factory.createArchiveOutputStream(archiveType, out1);
-        assertThrows(IOException.class, aos2::closeArchiveEntry, "Should have raised IOException - closeArchiveEntry() called before putArchiveEntry()");
+        assertThrows(ArchiveException.class, aos2::closeArchiveEntry, "Should have raised IOException - closeArchiveEntry() called before putArchiveEntry()");
 
         aos2.putArchiveEntry(aos2.createArchiveEntry(dummy, "dummy"));
         aos2.write(dummy);
 
         // TODO check if second putArchiveEntry() can follow without closeAE?
 
-        assertThrows(IOException.class, aos2::finish, "Should have raised IOException - finish() called before closeArchiveEntry()");
-        assertThrows(IOException.class, aos2::close, "Should have raised IOException - close() called before closeArchiveEntry()");
+        assertThrows(ArchiveException.class, aos2::finish, "Should have raised IOException - finish() called before closeArchiveEntry()");
+        assertThrows(ArchiveException.class, aos2::close, "Should have raised IOException - close() called before closeArchiveEntry()");
 
         final O aos3 = createArchiveWithDummyEntry(archiveType, out1, dummy);
         aos3.closeArchiveEntry();
-        assertThrows(IOException.class, aos3::closeArchiveEntry, "Should have raised IOException - closeArchiveEntry() called with no open entry");
+        assertThrows(ArchiveException.class, aos3::closeArchiveEntry, "Should have raised IOException - closeArchiveEntry() called with no open entry");
 
         final O aos4 = createArchiveWithDummyEntry(archiveType, out1, dummy);
         aos4.closeArchiveEntry();
@@ -78,67 +78,67 @@ public class ArchiveOutputStreamTest<O extends ArchiveOutputStream<E>, E extends
     }
 
     @Test
-    public void testCallSequenceAr() throws Exception {
+    void testCallSequenceAr() throws Exception {
         doCallSequence("Ar");
     }
 
     @Test
-    public void testCallSequenceCpio() throws Exception {
+    void testCallSequenceCpio() throws Exception {
         doCallSequence("Cpio");
     }
 
     @Test
-    public void testCallSequenceJar() throws Exception {
+    void testCallSequenceJar() throws Exception {
         doCallSequence("Jar");
     }
 
     @Test
-    public void testCallSequenceTar() throws Exception {
+    void testCallSequenceTar() throws Exception {
         doCallSequence("Tar");
     }
 
     @Test
-    public void testCallSequenceZip() throws Exception {
+    void testCallSequenceZip() throws Exception {
         doCallSequence("Zip");
     }
 
     @Test
-    public void testFinish() throws Exception {
+    void testFinish() throws Exception {
         final OutputStream out1 = new ByteArrayOutputStream();
 
         try (ArchiveOutputStream<? super ArchiveEntry> aios = factory.createArchiveOutputStream("zip", out1)) {
             aios.putArchiveEntry(new ZipArchiveEntry("dummy"));
-            assertThrows(IOException.class, () -> aios.finish(), "After putArchiveEntry() should follow closeArchiveEntry()");
+            assertThrows(ArchiveException.class, () -> aios.finish(), "After putArchiveEntry() should follow closeArchiveEntry()");
             aios.closeArchiveEntry();
         }
 
         try (ArchiveOutputStream<JarArchiveEntry> aios = factory.createArchiveOutputStream("jar", out1)) {
             aios.putArchiveEntry(new JarArchiveEntry("dummy"));
-            assertThrows(IOException.class, () -> aios.finish(), "After putArchiveEntry() should follow closeArchiveEntry()");
+            assertThrows(ArchiveException.class, () -> aios.finish(), "After putArchiveEntry() should follow closeArchiveEntry()");
             aios.closeArchiveEntry();
         }
 
         try (ArchiveOutputStream<ArArchiveEntry> aios = factory.createArchiveOutputStream("ar", out1)) {
             aios.putArchiveEntry(new ArArchiveEntry("dummy", 100));
-            assertThrows(IOException.class, () -> aios.finish(), "After putArchiveEntry() should follow closeArchiveEntry()");
+            assertThrows(ArchiveException.class, () -> aios.finish(), "After putArchiveEntry() should follow closeArchiveEntry()");
             aios.closeArchiveEntry();
         }
 
         try (ArchiveOutputStream<CpioArchiveEntry> aios = factory.createArchiveOutputStream("cpio", out1)) {
             aios.putArchiveEntry(new CpioArchiveEntry("dummy"));
-            assertThrows(IOException.class, () -> aios.finish(), "After putArchiveEntry() should follow closeArchiveEntry()");
+            assertThrows(ArchiveException.class, () -> aios.finish(), "After putArchiveEntry() should follow closeArchiveEntry()");
             aios.closeArchiveEntry();
         }
 
         try (ArchiveOutputStream<TarArchiveEntry> aios = factory.createArchiveOutputStream("tar", out1)) {
             aios.putArchiveEntry(new TarArchiveEntry("dummy"));
-            assertThrows(IOException.class, () -> aios.finish(), "After putArchiveEntry() should follow closeArchiveEntry()");
+            assertThrows(ArchiveException.class, () -> aios.finish(), "After putArchiveEntry() should follow closeArchiveEntry()");
             aios.closeArchiveEntry();
         }
     }
 
     @Test
-    public void testOptionalFinish() throws Exception {
+    void testOptionalFinish() throws Exception {
         final OutputStream out1 = new ByteArrayOutputStream();
 
         try (ArchiveOutputStream<ZipArchiveEntry> aos1 = factory.createArchiveOutputStream("zip", out1)) {
@@ -152,7 +152,7 @@ public class ArchiveOutputStreamTest<O extends ArchiveOutputStream<E>, E extends
             aos1.putArchiveEntry(new JarArchiveEntry("dummy"));
             aos1.closeArchiveEntry();
         }
-        assertThrows(IOException.class, () -> finishTest.finish(), "finish() cannot follow close()");
+        assertThrows(ArchiveException.class, () -> finishTest.finish(), "finish() cannot follow close()");
         finishTest.close();
     }
 }

@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.zip.Deflater;
 
+import org.apache.commons.compress.CompressException;
 import org.apache.commons.io.Charsets;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -40,7 +41,7 @@ import org.apache.commons.lang3.StringUtils;
 public class GzipParameters {
 
     /**
-     * The OS type.
+     * Enumerates OS types.
      * <ul>
      * <li>0 - FAT filesystem (MS-DOS, OS/2, NT/Win32)</li>
      * <li>1 - Amiga</li>
@@ -84,7 +85,6 @@ public class GzipParameters {
          */
         CPM(OS_CPM),
 
-        // @formatter:off
         /**
          * 0: FAT filesystem (MS-DOS, OS/2, NT/Win32).
          */
@@ -139,15 +139,19 @@ public class GzipParameters {
          * 8: Z-System.
          */
         Z_SYSTEM(OS_Z_SYSTEM);
-        // @formatter:on
 
         /**
          * Gets the {@link OS} matching the given code.
          *
          * @param code an OS or {@link #UNKNOWN} for no match.
          * @return a {@link OS}.
+         * @throws CompressException Thrown when the {@code code} is undefined, as opposed to {@code UNKNOWN}.
          */
-        public static OS from(final int code) {
+        public static OS from(final int code) throws CompressException {
+            return from(code, true);
+        }
+
+        static OS from(final int code, final boolean strict) throws CompressException {
             switch (code) {
             case OS_ACORN_RISCOS:
                 return ACORN_RISCOS;
@@ -180,6 +184,9 @@ public class GzipParameters {
             case OS_Z_SYSTEM:
                 return Z_SYSTEM;
             default:
+                if (strict) {
+                    throw new CompressException("Unknown operating system code: %s", code);
+                }
                 return UNKNOWN;
             }
         }
@@ -289,9 +296,11 @@ public class GzipParameters {
     private int compressionLevel = Deflater.DEFAULT_COMPRESSION;
     private int deflateStrategy = Deflater.DEFAULT_STRATEGY;
     private ExtraField extraField;
+    private int extraFieldXlen;
     private String fileName;
     private Charset fileNameCharset = GzipUtils.GZIP_ENCODING;
     private boolean headerCrc;
+
     /**
      * The most recent modification time (MTIME) of the original file being compressed.
      * <p>
@@ -304,6 +313,13 @@ public class GzipParameters {
     private OS operatingSystem = OS.UNKNOWN; // Unknown OS by default
     private long trailerCrc;
     private long trailerISize;
+
+    /**
+     * Constructs a new instance with default values.
+     */
+    public GzipParameters() {
+        // Default constructor
+    }
 
     @Override
     public boolean equals(final Object obj) {
@@ -374,6 +390,10 @@ public class GzipParameters {
      */
     public ExtraField getExtraField() {
         return extraField;
+    }
+
+    int getExtraFieldXlen() {
+        return extraFieldXlen;
     }
 
     /**
@@ -504,7 +524,7 @@ public class GzipParameters {
      */
     public void setBufferSize(final int bufferSize) {
         if (bufferSize <= 0) {
-            throw new IllegalArgumentException("invalid buffer size: " + bufferSize);
+            throw new IllegalArgumentException("Invalid buffer size: " + bufferSize);
         }
         this.bufferSize = bufferSize;
     }
@@ -522,7 +542,7 @@ public class GzipParameters {
     /**
      * Sets the compression level.
      *
-     * @param compressionLevel the compression level (between 0 and 9)
+     * @param compressionLevel the compression level (between 0 and 9).
      * @see Deflater#NO_COMPRESSION
      * @see Deflater#BEST_SPEED
      * @see Deflater#DEFAULT_COMPRESSION
@@ -538,7 +558,7 @@ public class GzipParameters {
     /**
      * Sets the deflater strategy.
      *
-     * @param deflateStrategy the new compression strategy
+     * @param deflateStrategy the new compression strategy.
      * @see Deflater#setStrategy(int)
      * @since 1.23
      */
@@ -550,17 +570,21 @@ public class GzipParameters {
      * Sets the extra subfields. Note that a non-null extra will appear in the gzip header regardless of the presence of subfields, while a null extra will not
      * appear at all.
      *
-     * @param extra the series of extra sub fields.
+     * @param extra the series of extra subfields.
      * @since 1.28.0
      */
     public void setExtraField(final ExtraField extra) {
         this.extraField = extra;
     }
 
+    void setExtraFieldXlen(final int extraFieldXlen) {
+        this.extraFieldXlen = extraFieldXlen;
+    }
+
     /**
      * Sets the name of the compressed file.
      *
-     * @param fileName the name of the file without the directory path
+     * @param fileName the name of the file without the directory path.
      * @throws IllegalArgumentException if the encoded bytes would contain a nul byte '\0' reserved for gzip field termination.
      * @deprecated Use {@link #setFileName(String)}.
      */
@@ -572,7 +596,7 @@ public class GzipParameters {
     /**
      * Sets the name of the compressed file.
      *
-     * @param fileName the name of the file without the directory path
+     * @param fileName the name of the file without the directory path.
      * @throws IllegalArgumentException if the encoded bytes would contain a nul byte '\0' reserved for gzip field termination.
      */
     public void setFileName(final String fileName) {
@@ -599,7 +623,7 @@ public class GzipParameters {
     /**
      * Establishes the presence of the header flag FLG.FHCRC and its headers CRC16 value.
      *
-     * @param headerCRC when true, the header CRC16 (actually low 16 buts of a CRC32) is calculated and inserted
+     * @param headerCRC when true, the header CRC16 (actually low 16 buts of a CRC32) is calculated and inserted.
      *         in the gzip header on write; on read it means the field was present.
      * @since 1.28.0
      */
@@ -610,7 +634,7 @@ public class GzipParameters {
     /**
      * Sets the modification time (MTIME) of the compressed file.
      *
-     * @param modificationTime the modification time, in milliseconds
+     * @param modificationTime the modification time, in milliseconds.
      * @since 1.28.0
      */
     public void setModificationInstant(final Instant modificationTime) {
@@ -651,16 +675,17 @@ public class GzipParameters {
      * <li>255: Unknown</li>
      * </ul>
      *
-     * @param operatingSystem the code of the operating system
+     * @param operatingSystem the code of the operating system.
+     * @throws CompressException Thrown when the {@code code} is undefined, as opposed to {@code UNKNOWN (255)}.
      */
-    public void setOperatingSystem(final int operatingSystem) {
+    public void setOperatingSystem(final int operatingSystem) throws CompressException {
         this.operatingSystem = OS.from(operatingSystem);
     }
 
     /**
      * Sets the operating system on which the compression took place.
      *
-     * @param os operating system, null maps to {@link OS#UNKNOWN}.
+     * @param os operating system, null resets to {@link OS#UNKNOWN}.
      * @since 1.28.0
      */
     public void setOS(final OS os) {
@@ -674,6 +699,7 @@ public class GzipParameters {
     void setTrailerISize(final long trailerISize) {
         this.trailerISize = trailerISize;
     }
+
 
     @Override
     public String toString() {

@@ -34,7 +34,9 @@ import java.util.function.BiFunction;
 import org.objectweb.asm.Type;
 
 /**
- * Pack200 Constant Pool Bands
+ * Pack200 Constant Pool Bands.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CpBands extends BandSet {
 
@@ -66,6 +68,12 @@ public class CpBands extends BandSet {
 
     private final Segment segment;
 
+    /**
+     * Constructs a new instance.
+     *
+     * @param segment the segment.
+     * @param effort the effort level.
+     */
     public CpBands(final Segment segment, final int effort) {
         super(effort, segment.getSegmentHeader());
         this.segment = segment;
@@ -93,10 +101,20 @@ public class CpBands extends BandSet {
         }
     }
 
+    /**
+     * Adds a constant pool class entry for the given class name.
+     *
+     * @param className the class name.
+     */
     public void addCPClass(final String className) {
         getCPClass(className);
     }
 
+    /**
+     * Adds a constant pool UTF-8 entry for the given string.
+     *
+     * @param utf8 the UTF-8 string.
+     */
     void addCPUtf8(final String utf8) {
         getCPUtf8(utf8);
     }
@@ -124,6 +142,12 @@ public class CpBands extends BandSet {
         });
     }
 
+    /**
+     * Tests whether a constant pool class entry exists for the given class name.
+     *
+     * @param className the class name.
+     * @return true if the class exists in the constant pool.
+     */
     public boolean existsCpClass(final String className) {
         return stringsToCpClass.containsKey(className);
     }
@@ -150,6 +174,12 @@ public class CpBands extends BandSet {
         segmentHeader.setCp_Imethod_count(cp_Imethod.size());
     }
 
+    /**
+     * Gets a constant pool constant for the given value.
+     *
+     * @param value the value.
+     * @return the constant pool constant.
+     */
     public CPConstant<?> getConstant(final Object value) {
         CPConstant<?> constant = objectsToCPConstant.get(value);
         if (constant == null) {
@@ -184,6 +214,12 @@ public class CpBands extends BandSet {
         return constant;
     }
 
+    /**
+     * Gets a constant pool class for the given class name.
+     *
+     * @param className a fully-qualified class name.
+     * @return a constant pool class.
+     */
     public CPClass getCPClass(String className) {
         if (className == null) {
             return null;
@@ -202,6 +238,14 @@ public class CpBands extends BandSet {
         return cpClass;
     }
 
+    /**
+     * Gets a constant pool field reference.
+     *
+     * @param cpClass the constant pool class.
+     * @param name the field name.
+     * @param desc the field descriptor.
+     * @return the constant pool field reference.
+     */
     public CPMethodOrField getCPField(final CPClass cpClass, final String name, final String desc) {
         final String key = cpClass.toString() + ":" + name + ":" + desc;
         CPMethodOrField cpF = stringsToCpField.get(key);
@@ -214,10 +258,26 @@ public class CpBands extends BandSet {
         return cpF;
     }
 
+    /**
+     * Gets a constant pool field reference.
+     *
+     * @param owner the owner class name.
+     * @param name the field name.
+     * @param desc the field descriptor.
+     * @return the constant pool field reference.
+     */
     public CPMethodOrField getCPField(final String owner, final String name, final String desc) {
         return getCPField(getCPClass(owner), name, desc);
     }
 
+    /**
+     * Gets a constant pool interface method reference.
+     *
+     * @param cpClass the constant pool class.
+     * @param name the method name.
+     * @param desc the method descriptor.
+     * @return the constant pool interface method reference.
+     */
     public CPMethodOrField getCPIMethod(final CPClass cpClass, final String name, final String desc) {
         final String key = cpClass.toString() + ":" + name + ":" + desc;
         CPMethodOrField cpIM = stringsToCpIMethod.get(key);
@@ -230,10 +290,26 @@ public class CpBands extends BandSet {
         return cpIM;
     }
 
+    /**
+     * Gets a constant pool interface method reference.
+     *
+     * @param owner the owner class name.
+     * @param name the method name.
+     * @param desc the method descriptor.
+     * @return the constant pool interface method reference.
+     */
     public CPMethodOrField getCPIMethod(final String owner, final String name, final String desc) {
         return getCPIMethod(getCPClass(owner), name, desc);
     }
 
+    /**
+     * Gets a constant pool method reference.
+     *
+     * @param cpClass the constant pool class.
+     * @param name the method name.
+     * @param desc the method descriptor.
+     * @return the constant pool method reference.
+     */
     public CPMethodOrField getCPMethod(final CPClass cpClass, final String name, final String desc) {
         final String key = cpClass.toString() + ":" + name + ":" + desc;
         CPMethodOrField cpM = stringsToCpMethod.get(key);
@@ -246,10 +322,25 @@ public class CpBands extends BandSet {
         return cpM;
     }
 
+    /**
+     * Gets a constant pool method reference.
+     *
+     * @param owner the owner class name.
+     * @param name the method name.
+     * @param desc the method descriptor.
+     * @return the constant pool method reference.
+     */
     public CPMethodOrField getCPMethod(final String owner, final String name, final String desc) {
         return getCPMethod(getCPClass(owner), name, desc);
     }
 
+    /**
+     * Gets a constant pool name and type entry.
+     *
+     * @param name the name.
+     * @param signature the signature.
+     * @return the constant pool name and type entry.
+     */
     public CPNameAndType getCPNameAndType(final String name, final String signature) {
         final String descr = name + ":" + signature;
         CPNameAndType nameAndType = stringsToCpNameAndType.get(descr);
@@ -261,6 +352,12 @@ public class CpBands extends BandSet {
         return nameAndType;
     }
 
+    /**
+     * Gets a constant pool signature.
+     *
+     * @param signature the signature string.
+     * @return a constant pool signature.
+     */
     public CPSignature getCPSignature(final String signature) {
         if (signature == null) {
             return null;
@@ -315,6 +412,12 @@ public class CpBands extends BandSet {
         return cpS;
     }
 
+    /**
+     * Gets a constant pool UTF-8 entry.
+     *
+     * @param utf8 the UTF-8 string.
+     * @return the constant pool UTF-8 entry.
+     */
     public CPUTF8 getCPUtf8(final String utf8) {
         if (utf8 == null) {
             return null;

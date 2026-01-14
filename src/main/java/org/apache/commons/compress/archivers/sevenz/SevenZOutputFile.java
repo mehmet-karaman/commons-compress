@@ -54,6 +54,8 @@ import java.util.stream.StreamSupport;
 import java.util.zip.CRC32;
 
 import org.apache.commons.compress.archivers.ArchiveEntry;
+import org.apache.commons.compress.archivers.ArchiveException;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.file.attribute.FileTimes;
 import org.apache.commons.io.output.CountingOutputStream;
 
@@ -86,6 +88,7 @@ public class SevenZOutputFile implements Closeable {
 
         @Override
         public void write(final byte[] b, final int off, final int len) throws IOException {
+            IOUtils.checkFromIndexSize(b, off, len);
             if (len > BUF_SIZE) {
                 channel.write(ByteBuffer.wrap(b, off, len));
             } else {
@@ -131,8 +134,8 @@ public class SevenZOutputFile implements Closeable {
     /**
      * Opens file to write a 7z archive to.
      *
-     * @param fileName the file to write to
-     * @throws IOException if opening the file fails
+     * @param fileName the file to write to.
+     * @throws IOException if opening the file fails.
      */
     public SevenZOutputFile(final File fileName) throws IOException {
         this(fileName, null);
@@ -141,9 +144,9 @@ public class SevenZOutputFile implements Closeable {
     /**
      * Opens file to write a 7z archive to.
      *
-     * @param fileName the file to write to
-     * @param password optional password if the archive has to be encrypted
-     * @throws IOException if opening the file fails
+     * @param fileName the file to write to.
+     * @param password optional password if the archive has to be encrypted.
+     * @throws IOException if opening the file fails.
      * @since 1.23
      */
     public SevenZOutputFile(final File fileName, final char[] password) throws IOException {
@@ -155,11 +158,11 @@ public class SevenZOutputFile implements Closeable {
      * Prepares channel to write a 7z archive to.
      *
      * <p>
-     * {@link org.apache.commons.compress.utils.SeekableInMemoryByteChannel} allows you to write to an in-memory archive.
+     * {@link org.apache.commons.io.channels.ByteArraySeekableByteChannel} allows you to write to an in-memory archive.
      * </p>
      *
-     * @param channel the channel to write to
-     * @throws IOException if the channel cannot be positioned properly
+     * @param channel the channel to write to.
+     * @throws IOException if the channel cannot be positioned properly.
      * @since 1.13
      */
     public SevenZOutputFile(final SeekableByteChannel channel) throws IOException {
@@ -170,12 +173,12 @@ public class SevenZOutputFile implements Closeable {
      * Prepares channel to write a 7z archive to.
      *
      * <p>
-     * {@link org.apache.commons.compress.utils.SeekableInMemoryByteChannel} allows you to write to an in-memory archive.
+     * {@link org.apache.commons.io.channels.ByteArraySeekableByteChannel} allows you to write to an in-memory archive.
      * </p>
      *
-     * @param channel  the channel to write to
-     * @param password optional password if the archive has to be encrypted
-     * @throws IOException if the channel cannot be positioned properly
+     * @param channel  the channel to write to.
+     * @param password optional password if the archive has to be encrypted.
+     * @throws IOException if the channel cannot be positioned properly.
      * @since 1.23
      */
     public SevenZOutputFile(final SeekableByteChannel channel, final char[] password) throws IOException {
@@ -189,7 +192,7 @@ public class SevenZOutputFile implements Closeable {
     /**
      * Closes the archive, calling {@link #finish} if necessary.
      *
-     * @throws IOException on error
+     * @throws IOException on error.
      */
     @Override
     public void close() throws IOException {
@@ -205,7 +208,7 @@ public class SevenZOutputFile implements Closeable {
     /**
      * Closes the archive entry.
      *
-     * @throws IOException on error
+     * @throws IOException on error.
      */
     public void closeArchiveEntry() throws IOException {
         if (currentOutputStream != null) {
@@ -243,9 +246,9 @@ public class SevenZOutputFile implements Closeable {
     /**
      * Creates an archive entry using the inputFile and entryName provided.
      *
-     * @param inputFile file to create an entry from
-     * @param entryName the name to use
-     * @return the ArchiveEntry set up with details from the file
+     * @param inputFile file to create an entry from.
+     * @param entryName the name to use.
+     * @return the ArchiveEntry set up with details from the file.
      */
     public SevenZArchiveEntry createArchiveEntry(final File inputFile, final String entryName) {
         final SevenZArchiveEntry entry = new SevenZArchiveEntry();
@@ -262,11 +265,11 @@ public class SevenZOutputFile implements Closeable {
     /**
      * Creates an archive entry using the inputPath and entryName provided.
      *
-     * @param inputPath path to create an entry from
-     * @param entryName the name to use
+     * @param inputPath path to create an entry from.
+     * @param entryName the name to use.
      * @param options   options indicating how symbolic links are handled.
-     * @return the ArchiveEntry set up with details from the file
-     * @throws IOException on error
+     * @return the ArchiveEntry set up with details from the file.
+     * @throws IOException on error.
      * @since 1.21
      */
     public SevenZArchiveEntry createArchiveEntry(final Path inputPath, final String entryName, final LinkOption... options) throws IOException {
@@ -291,7 +294,7 @@ public class SevenZOutputFile implements Closeable {
      */
     public void finish() throws IOException {
         if (finished) {
-            throw new IOException("This archive has already been finished");
+            throw new ArchiveException("This archive has already been finished");
         }
         finished = true;
 
@@ -308,14 +311,14 @@ public class SevenZOutputFile implements Closeable {
         final CRC32 crc32 = new CRC32();
         crc32.update(headerBytes);
 
-        final ByteBuffer bb = ByteBuffer.allocate(SevenZFile.sevenZSignature.length + 2 /* version */
+        final ByteBuffer bb = ByteBuffer.allocate(SevenZFile.SIGNATURE.length + 2 /* version */
                 + 4 /* start header CRC */
                 + 8 /* next header position */
                 + 8 /* next header length */
                 + 4 /* next header CRC */).order(ByteOrder.LITTLE_ENDIAN);
         // signature header
         channel.position(0);
-        bb.put(SevenZFile.sevenZSignature);
+        bb.put(SevenZFile.SIGNATURE);
         // version
         bb.put((byte) 0).put((byte) 2);
 
@@ -325,8 +328,8 @@ public class SevenZOutputFile implements Closeable {
         // start header
         bb.putLong(headerPosition - SevenZFile.SIGNATURE_HEADER_SIZE).putLong(0xffffFFFFL & headerBytes.length).putInt((int) crc32.getValue());
         crc32.reset();
-        crc32.update(bb.array(), SevenZFile.sevenZSignature.length + 6, 20);
-        bb.putInt(SevenZFile.sevenZSignature.length + 2, (int) crc32.getValue());
+        crc32.update(bb.array(), SevenZFile.SIGNATURE.length + 6, 20);
+        bb.putInt(SevenZFile.SIGNATURE.length + 2, (int) crc32.getValue());
         bb.flip();
         channel.write(bb);
     }
@@ -360,7 +363,7 @@ public class SevenZOutputFile implements Closeable {
      *
      * The caller must then write the content to the archive and call {@link #closeArchiveEntry()} to complete the process.
      *
-     * @param archiveEntry describes the entry
+     * @param archiveEntry describes the entry.
      * @deprecated Use {@link #putArchiveEntry(SevenZArchiveEntry)}.
      */
     @Deprecated
@@ -373,7 +376,7 @@ public class SevenZOutputFile implements Closeable {
      *
      * The caller must then write the content to the archive and call {@link #closeArchiveEntry()} to complete the process.
      *
-     * @param archiveEntry describes the entry
+     * @param archiveEntry describes the entry.
      * @since 1.25.0
      */
     public void putArchiveEntry(final SevenZArchiveEntry archiveEntry) {
@@ -391,7 +394,7 @@ public class SevenZOutputFile implements Closeable {
      * This is a short form for passing a single-element iterable to {@link #setContentMethods}.
      * </p>
      *
-     * @param method the default compression method
+     * @param method the default compression method.
      */
     public void setContentCompression(final SevenZMethod method) {
         setContentMethods(Collections.singletonList(new SevenZMethodConfiguration(method)));
@@ -408,8 +411,8 @@ public class SevenZOutputFile implements Closeable {
      * The methods will be consulted in iteration order to create the final output.
      * </p>
      *
+     * @param methods the default (compression) methods.
      * @since 1.8
-     * @param methods the default (compression) methods
      */
     public void setContentMethods(final Iterable<? extends SevenZMethodConfiguration> methods) {
         this.contentMethods = reverse(methods);
@@ -461,7 +464,7 @@ public class SevenZOutputFile implements Closeable {
      * Writes a byte array to the current archive entry.
      *
      * @param b The byte array to be written.
-     * @throws IOException on error
+     * @throws IOException on error.
      */
     public void write(final byte[] b) throws IOException {
         write(b, 0, b.length);
@@ -471,9 +474,9 @@ public class SevenZOutputFile implements Closeable {
      * Writes part of a byte array to the current archive entry.
      *
      * @param b   The byte array to be written.
-     * @param off offset into the array to start writing from
-     * @param len number of bytes to write
-     * @throws IOException on error
+     * @param off offset into the array to start writing from.
+     * @param len number of bytes to write.
+     * @throws IOException on error.
      */
     public void write(final byte[] b, final int off, final int len) throws IOException {
         if (len > 0) {
@@ -500,7 +503,7 @@ public class SevenZOutputFile implements Closeable {
      * Writes a byte to the current archive entry.
      *
      * @param b The byte to be written.
-     * @throws IOException on error
+     * @throws IOException on error.
      */
     public void write(final int b) throws IOException {
         getCurrentOutputStream().write(b);
@@ -541,7 +544,7 @@ public class SevenZOutputFile implements Closeable {
         final BitSet antiItems = new BitSet(0);
         int antiItemCounter = 0;
         for (final SevenZArchiveEntry file1 : files) {
-            if (!file1.hasStream()) {
+            if (file1.isEmptyStream()) {
                 final boolean isAnti = file1.isAntiItem();
                 antiItems.set(antiItemCounter++, isAnti);
                 hasAntiItems |= isAnti;
@@ -636,7 +639,7 @@ public class SevenZOutputFile implements Closeable {
         int emptyStreamCounter = 0;
         final BitSet emptyFiles = new BitSet(0);
         for (final SevenZArchiveEntry file1 : files) {
-            if (!file1.hasStream()) {
+            if (file1.isEmptyStream()) {
                 final boolean isDir = file1.isDirectory();
                 emptyFiles.set(emptyStreamCounter++, !isDir);
                 hasEmptyFiles |= !isDir;
@@ -655,12 +658,12 @@ public class SevenZOutputFile implements Closeable {
     }
 
     private void writeFileEmptyStreams(final DataOutput header) throws IOException {
-        final boolean hasEmptyStreams = files.stream().anyMatch(entry -> !entry.hasStream());
+        final boolean hasEmptyStreams = files.stream().anyMatch(SevenZArchiveEntry::isEmptyStream);
         if (hasEmptyStreams) {
             header.write(NID.kEmptyStream);
             final BitSet emptyStreams = new BitSet(files.size());
             for (int i = 0; i < files.size(); i++) {
-                emptyStreams.set(i, !files.get(i).hasStream());
+                emptyStreams.set(i, files.get(i).isEmptyStream());
             }
             final ByteArrayOutputStream baos = new ByteArrayOutputStream();
             final DataOutputStream out = new DataOutputStream(baos);

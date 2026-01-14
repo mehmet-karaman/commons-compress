@@ -22,6 +22,8 @@ import java.util.List;
 
 /**
  * Method constant pool entry.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPMethod extends CPMember {
 
@@ -29,6 +31,14 @@ public class CPMethod extends CPMember {
 
     private int cachedHashCode;
 
+    /**
+     * Constructs a new CPMethod.
+     *
+     * @param name the method name.
+     * @param descriptor the method descriptor.
+     * @param flags the method flags.
+     * @param attributes the method attributes.
+     */
     public CPMethod(final CPUTF8 name, final CPUTF8 descriptor, final long flags, final List<Attribute> attributes) {
         super(name, descriptor, flags, attributes);
     }

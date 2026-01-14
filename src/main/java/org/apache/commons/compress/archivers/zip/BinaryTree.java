@@ -23,7 +23,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.compress.archivers.ArchiveException;
 import org.apache.commons.lang3.ArrayFill;
 
 /**
@@ -49,10 +49,10 @@ final class BinaryTree {
         // the first byte contains the size of the structure minus one
         final int size = inputStream.read() + 1;
         if (size == 0) {
-            throw new IOException("Cannot read the size of the encoded tree, unexpected end of stream");
+            throw new ArchiveException("Cannot read the size of the encoded tree, unexpected end of stream");
         }
 
-        final byte[] encodedTree = IOUtils.readRange(inputStream, size);
+        final byte[] encodedTree = org.apache.commons.compress.utils.IOUtils.readRange(inputStream, size);
         if (encodedTree.length != size) {
             throw new EOFException();
         }
@@ -66,7 +66,7 @@ final class BinaryTree {
             // each byte encodes the number of values (upper 4 bits) for a bit length (lower 4 bits)
             final int numberOfValues = ((b & 0xF0) >> 4) + 1;
             if (pos + numberOfValues > totalNumberOfValues) {
-                throw new IOException("Number of values exceeds given total number of values");
+                throw new ArchiveException("Number of values exceeds given total number of values");
             }
             final int bitLength = (b & 0x0F) + 1;
 
@@ -138,7 +138,7 @@ final class BinaryTree {
 
     BinaryTree(final int depth) {
         if (depth < 0 || depth > 30) {
-            throw new IllegalArgumentException("depth must be bigger than 0 and not bigger than 30" + " but is " + depth);
+            throw new IllegalArgumentException("depth must be bigger than 0 and not bigger than 30 but is " + depth);
         }
         tree = ArrayFill.fill(new int[(int) ((1L << depth + 1) - 1)], UNDEFINED);
     }
@@ -146,10 +146,10 @@ final class BinaryTree {
     /**
      * Adds a leaf to the tree.
      *
-     * @param node  the index of the node where the path is appended
-     * @param path  the path to the leaf (bits are parsed from the right to the left)
-     * @param depth the number of nodes in the path
-     * @param value the value of the leaf (must be positive)
+     * @param node  the index of the node where the path is appended.
+     * @param path  the path to the leaf (bits are parsed from the right to the left).
+     * @param depth the number of nodes in the path.
+     * @param value the value of the leaf (must be positive).
      */
     public void addLeaf(final int node, final int path, final int depth, final int value) {
         if (depth == 0) {
@@ -171,19 +171,17 @@ final class BinaryTree {
     /**
      * Reads a value from the specified bit stream.
      *
-     * @param stream
-     * @return the value decoded, or -1 if the end of the stream is reached
+     * @param stream The data source.
+     * @return the value decoded, or -1 if the end of the stream is reached.
      * @throws IOException on error.
      */
     public int read(final BitStream stream) throws IOException {
         int currentIndex = 0;
-
         while (true) {
-            final int bit = stream.nextBit();
+            final int bit = stream.readBit();
             if (bit == -1) {
                 return -1;
             }
-
             final int childIndex = 2 * currentIndex + 1 + bit;
             final int value = tree[childIndex];
             if (value == NODE) {
@@ -192,7 +190,7 @@ final class BinaryTree {
             } else if (value != UNDEFINED) {
                 return value;
             } else {
-                throw new IOException("The child " + bit + " of node at index " + currentIndex + " is not defined");
+                throw new ArchiveException("The child %,d of node at index %,d is not defined", bit, currentIndex);
             }
         }
     }

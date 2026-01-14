@@ -28,15 +28,35 @@ import org.apache.commons.compress.harmony.unpack200.bytecode.OperandManager;
 
 /**
  * Abstract class of all ByteCodeForms which add a nested entry from the globalConstantPool.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public abstract class ReferenceForm extends ByteCodeForm {
 
+    /**
+     * Constructs a new instance with the specified opcode, name, operandType and rewrite.
+     *
+     * @param opcode  index corresponding to the opcode's value.
+     * @param name    String printable name of the opcode.
+     * @param rewrite Operand positions (which will later be rewritten in ByteCodes) are indicated by -1.
+     */
     public ReferenceForm(final int opcode, final String name, final int[] rewrite) {
         super(opcode, name, rewrite);
     }
 
+    /**
+     * Gets the offset from the operand manager.
+     *
+     * @param operandManager the operand manager.
+     * @return the offset.
+     */
     protected abstract int getOffset(OperandManager operandManager);
 
+    /**
+     * Gets the pool ID for this reference.
+     *
+     * @return the pool ID.
+     */
     protected abstract int getPoolID();
 
     /*
@@ -47,7 +67,7 @@ public abstract class ReferenceForm extends ByteCodeForm {
      * org.apache.commons.compress.harmony.unpack200.Segment)
      */
     @Override
-    public void setByteCodeOperands(final ByteCode byteCode, final OperandManager operandManager, final int codeLength) {
+    public void setByteCodeOperands(final ByteCode byteCode, final OperandManager operandManager, final int codeLength) throws Pack200Exception {
         final int offset = getOffset(operandManager);
         try {
             setNestedEntries(byteCode, operandManager, offset);
@@ -56,6 +76,14 @@ public abstract class ReferenceForm extends ByteCodeForm {
         }
     }
 
+    /**
+     * Sets the nested entries.
+     *
+     * @param byteCode byte codes.
+     * @param operandManager Operand manager.
+     * @param offset offset.
+     * @throws Pack200Exception if support for a type is not supported or the offset not in the range [0, {@link Integer#MAX_VALUE}].
+     */
     protected void setNestedEntries(final ByteCode byteCode, final OperandManager operandManager, final int offset) throws Pack200Exception {
         final SegmentConstantPool globalPool = operandManager.globalConstantPool();
         final ClassFileEntry[] nested = { globalPool.getConstantPoolEntry(getPoolID(), offset) };

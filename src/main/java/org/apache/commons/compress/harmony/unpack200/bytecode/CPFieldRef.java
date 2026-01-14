@@ -24,6 +24,8 @@ import java.util.Objects;
 
 /**
  * Field reference constant pool entry.
+ *
+ * @see <a href="https://docs.oracle.com/en/java/javase/13/docs/specs/pack-spec.html">Pack200: A Packed Class Deployment Format For Java Applications</a>
  */
 public class CPFieldRef extends ConstantPoolEntry {
 
@@ -36,6 +38,13 @@ public class CPFieldRef extends ConstantPoolEntry {
 
     private int cachedHashCode;
 
+    /**
+     * Constructs a new CPFieldRef.
+     *
+     * @param className the class name.
+     * @param descriptor the field descriptor.
+     * @param globalIndex the global index.
+     */
     public CPFieldRef(final CPClass className, final CPNameAndType descriptor, final int globalIndex) {
         super(CP_Fieldref, globalIndex);
         this.className = className;
